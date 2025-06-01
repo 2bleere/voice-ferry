@@ -235,9 +235,9 @@ func initMetrics() {
 type MetricsCollector struct {
 	registry *prometheus.Registry
 	handler  http.Handler
-	
+
 	// Fields expected by tests
-	sipMessagesTotal      *prometheus.CounterVec
+	sipMessagesTotal     *prometheus.CounterVec
 	callsActive          prometheus.Gauge
 	routingDecisions     *prometheus.CounterVec
 	componentHealth      *prometheus.GaugeVec
@@ -263,14 +263,14 @@ func NewMetricsCollector() *MetricsCollector {
 		},
 		[]string{"method", "direction", "status"},
 	)
-	
+
 	callsActive := prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "test_calls_active",
 			Help: "Number of currently active calls (test)",
 		},
 	)
-	
+
 	routingDecisions := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_routing_decisions_total",
@@ -278,7 +278,7 @@ func NewMetricsCollector() *MetricsCollector {
 		},
 		[]string{"result", "rule"},
 	)
-	
+
 	callDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "test_call_duration_seconds",
@@ -287,14 +287,14 @@ func NewMetricsCollector() *MetricsCollector {
 		},
 		[]string{"reason"},
 	)
-	
+
 	mediaSessionsActive := prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "test_media_sessions_active",
 			Help: "Number of currently active media sessions (test)",
 		},
 	)
-	
+
 	rtpPacketsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_rtp_packets_total",
@@ -302,23 +302,23 @@ func NewMetricsCollector() *MetricsCollector {
 		},
 		[]string{"type", "direction"},
 	)
-	
+
 	redisOperationsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "test_redis_operations_total", 
+			Name: "test_redis_operations_total",
 			Help: "Total Redis operations (test)",
 		},
 		[]string{"operation", "result"},
 	)
-	
+
 	etcdOperationsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_etcd_operations_total",
-			Help: "Total etcd operations (test)", 
+			Help: "Total etcd operations (test)",
 		},
 		[]string{"operation", "result"},
 	)
-	
+
 	systemInfo := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "test_system_info",
@@ -326,7 +326,7 @@ func NewMetricsCollector() *MetricsCollector {
 		},
 		[]string{"version", "build_time"},
 	)
-	
+
 	callsTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_calls_total",
@@ -337,26 +337,26 @@ func NewMetricsCollector() *MetricsCollector {
 
 	// Create a separate registry for test metrics to avoid conflicts
 	testRegistry := prometheus.NewRegistry()
-	testRegistry.MustRegister(sipMessagesTotal, callsActive, routingDecisions, callDuration, 
+	testRegistry.MustRegister(sipMessagesTotal, callsActive, routingDecisions, callDuration,
 		mediaSessionsActive, rtpPacketsTotal, redisOperationsTotal, etcdOperationsTotal, systemInfo, callsTotal)
-	
+
 	// Also register the global ComponentHealth metric for tests
 	testRegistry.MustRegister(ComponentHealth)
 
 	return &MetricsCollector{
-		registry:              testRegistry,
-		handler:               promhttp.HandlerFor(testRegistry, promhttp.HandlerOpts{}),
-		sipMessagesTotal:      sipMessagesTotal,
-		callsActive:           callsActive,
-		routingDecisions:      routingDecisions,
-		componentHealth:       ComponentHealth,
-		callDuration:          callDuration,
-		mediaSessionsActive:   mediaSessionsActive,
-		rtpPacketsTotal:       rtpPacketsTotal,
-		redisOperationsTotal:  redisOperationsTotal,
-		etcdOperationsTotal:   etcdOperationsTotal,
-		systemInfo:            systemInfo,
-		callsTotal:            callsTotal,
+		registry:             testRegistry,
+		handler:              promhttp.HandlerFor(testRegistry, promhttp.HandlerOpts{}),
+		sipMessagesTotal:     sipMessagesTotal,
+		callsActive:          callsActive,
+		routingDecisions:     routingDecisions,
+		componentHealth:      ComponentHealth,
+		callDuration:         callDuration,
+		mediaSessionsActive:  mediaSessionsActive,
+		rtpPacketsTotal:      rtpPacketsTotal,
+		redisOperationsTotal: redisOperationsTotal,
+		etcdOperationsTotal:  etcdOperationsTotal,
+		systemInfo:           systemInfo,
+		callsTotal:           callsTotal,
 	}
 }
 
