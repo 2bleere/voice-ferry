@@ -331,6 +331,11 @@ func (mc *MetricsCollector) RecordSIPRequest(method, status, source string, dura
 	}
 }
 
+// RecordSIPMessage records a SIP message metric (alias for RecordSIPRequest for backward compatibility)
+func (mc *MetricsCollector) RecordSIPMessage(method, direction, status string) {
+	mc.RecordSIPRequest(method, status, direction, 0)
+}
+
 // RecordCallMetrics records call-related metrics
 func (mc *MetricsCollector) RecordCallMetrics(result, source, destination, terminationReason string, duration time.Duration) {
 	if CallsTotal != nil {
@@ -346,6 +351,11 @@ func (mc *MetricsCollector) UpdateActiveCallsGauge(state string, count float64) 
 	if ActiveCallsGauge != nil {
 		ActiveCallsGauge.WithLabelValues(state).Set(count)
 	}
+}
+
+// UpdateActiveCalls updates the active calls count (alias for UpdateActiveCallsGauge for backward compatibility)
+func (mc *MetricsCollector) UpdateActiveCalls(count int64) {
+	mc.UpdateActiveCallsGauge("total", float64(count))
 }
 
 // RecordRoutingDecision records a routing decision

@@ -247,6 +247,11 @@ func (hm *HealthManager) GetHealth() *SystemHealth {
 	}
 }
 
+// GetStatus returns the current system health (alias for GetHealth for backward compatibility)
+func (hm *HealthManager) GetStatus() *SystemHealth {
+	return hm.GetHealth()
+}
+
 // calculateOverallStatus calculates the overall system health status
 func (hm *HealthManager) calculateOverallStatus(components map[string]*ComponentHealth) HealthStatus {
 	if len(components) == 0 {
