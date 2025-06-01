@@ -1,23 +1,71 @@
-# golangci-lint configuration file
-
+# .golangci.yml
 run:
   timeout: 10m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - proto/gen
+    - vendor
+  skip-files:
+    - ".*\\.pb\\.go$"
 
 output:
+  format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  goimports:
+    local-prefixes: github.com/2bleere/voice-ferry
+  funlen:
+    lines: 100
+    statements: 50
+  gosec:
+    excludes:
+      - G107 # Potential HTTP request with variable url
+      - G204 # Subprocess launched with variable
+      - G301 # Poor file permissions used when creating a directory
+      - G302 # Poor file permissions used when creation file or using chmod
+      - G304 # File path provided as taint input
 
 linters:
   disable-all: true
   enable:
+    - bodyclose
     - errcheck
+    - exportloopref
+    - funlen
+    - gochecknoinits
+    - goconst
+    - gocyclo
+    - gofmt
+    - goimports
+    - gosec
     - gosimple
     - govet
     - ineffassign
+    - lll
+    - misspell
+    - nakedret
     - staticcheck
     - typecheck
+    - unconvert
+    - unparam
     - unused
-    - gofmt
+    - whitespace
 
 issues:
   exclude-rules:
@@ -29,4 +77,11 @@ issues:
         - all
     - path: "_test\\.go$"
       linters:
-        - errcheck
+        - funlen
+        - goconst
+    - path: cmd/
+      linters:
+        - funlen
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false

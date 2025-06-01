@@ -96,6 +96,7 @@ type LoggingConfig struct {
 	Output        string `yaml:"output"`         // stdout, stderr, file
 	File          string `yaml:"file"`           // log file path when output is file
 	IncludeSource bool   `yaml:"include_source"` // include source code location
+	Development   bool   `yaml:"development"`    // development mode
 	Version       string `yaml:"version"`        // application version
 	InstanceID    string `yaml:"instance_id"`    // instance identifier
 }

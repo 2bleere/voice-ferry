@@ -238,9 +238,15 @@ help:
 	@echo "  metrics       - Check metrics endpoint"
 	@echo "  help          - Show this help"
 
+# CI/CD health check
+.PHONY: ci-check
+ci-check:
+	@echo "Running CI/CD health check..."
+	@./scripts/ci-health-check.sh
+
 # CI/CD targets
 .PHONY: ci
-ci: deps fmt lint test-all security vuln-check build
+ci: deps fmt lint test-all vuln-check build
 
 .PHONY: cd
 cd: ci docker-build

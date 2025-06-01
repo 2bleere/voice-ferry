@@ -251,11 +251,16 @@ type MetricsCollector struct {
 }
 
 // NewMetricsCollector creates a new metrics collector
+// For production use, call NewProductionMetricsCollector() instead
 func NewMetricsCollector() *MetricsCollector {
-	// Initialize metrics first
-	initMetrics()
+	return NewTestMetricsCollector()
+}
 
-	// Create individual metrics for fields expected by tests with unique names
+// NewTestMetricsCollector creates a metrics collector for testing with isolated metrics
+func NewTestMetricsCollector() *MetricsCollector {
+	// For tests, create completely isolated metrics without any global state
+
+	// Create individual metrics for fields expected by tests
 	sipMessagesTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test_sip_messages_total",
@@ -335,13 +340,18 @@ func NewMetricsCollector() *MetricsCollector {
 		[]string{"result"},
 	)
 
+	componentHealth := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "component_health",
+			Help: "Health status of system components (test)",
+		},
+		[]string{"component"},
+	)
+
 	// Create a separate registry for test metrics to avoid conflicts
 	testRegistry := prometheus.NewRegistry()
 	testRegistry.MustRegister(sipMessagesTotal, callsActive, routingDecisions, callDuration,
-		mediaSessionsActive, rtpPacketsTotal, redisOperationsTotal, etcdOperationsTotal, systemInfo, callsTotal)
-
-	// Also register the global ComponentHealth metric for tests
-	testRegistry.MustRegister(ComponentHealth)
+		mediaSessionsActive, rtpPacketsTotal, redisOperationsTotal, etcdOperationsTotal, systemInfo, callsTotal, componentHealth)
 
 	return &MetricsCollector{
 		registry:             testRegistry,
@@ -349,7 +359,7 @@ func NewMetricsCollector() *MetricsCollector {
 		sipMessagesTotal:     sipMessagesTotal,
 		callsActive:          callsActive,
 		routingDecisions:     routingDecisions,
-		componentHealth:      ComponentHealth,
+		componentHealth:      componentHealth,
 		callDuration:         callDuration,
 		mediaSessionsActive:  mediaSessionsActive,
 		rtpPacketsTotal:      rtpPacketsTotal,
@@ -357,6 +367,28 @@ func NewMetricsCollector() *MetricsCollector {
 		etcdOperationsTotal:  etcdOperationsTotal,
 		systemInfo:           systemInfo,
 		callsTotal:           callsTotal,
+	}
+}
+
+// NewProductionMetricsCollector creates a metrics collector for production use with global metrics
+func NewProductionMetricsCollector() *MetricsCollector {
+	// Initialize global metrics
+	initMetrics()
+
+	return &MetricsCollector{
+		registry:             globalRegistry,
+		handler:              promhttp.HandlerFor(globalRegistry, promhttp.HandlerOpts{}),
+		sipMessagesTotal:     SIPRequestsTotal,
+		callsActive:          nil, // Production doesn't use single gauge for active calls
+		routingDecisions:     RoutingDecisionsTotal,
+		componentHealth:      ComponentHealth,
+		callDuration:         CallDuration,
+		mediaSessionsActive:  nil, // Production doesn't use single gauge for media sessions
+		rtpPacketsTotal:      nil, // Production doesn't have this specific metric
+		redisOperationsTotal: RedisOperations,
+		etcdOperationsTotal:  EtcdOperations,
+		systemInfo:           SystemInfo,
+		callsTotal:           CallsTotal,
 	}
 }
 
@@ -420,6 +452,9 @@ func (mc *MetricsCollector) SetSystemInfo(version, buildTime, goVersion string) 
 	if SystemInfo != nil {
 		SystemInfo.WithLabelValues(version, buildTime, goVersion).Set(1)
 	}
+	if mc.systemInfo != nil {
+		mc.systemInfo.WithLabelValues(version, buildTime).Set(1)
+	}
 }
 
 // UpdateComponentHealth updates component health status
@@ -430,6 +465,13 @@ func (mc *MetricsCollector) UpdateComponentHealth(component string, healthy bool
 			value = 1
 		}
 		ComponentHealth.WithLabelValues(component).Set(value)
+	}
+	if mc.componentHealth != nil {
+		value := float64(0)
+		if healthy {
+			value = 1
+		}
+		mc.componentHealth.WithLabelValues(component).Set(value)
 	}
 }
 

@@ -2,10 +2,12 @@ package logging
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/2bleere/voice-ferry/pkg/config"
@@ -117,6 +119,7 @@ func NewLogger(cfg config.LoggingConfig, component string) (*Logger, error) {
 		"component", component,
 		"version", cfg.Version,
 		"instance_id", cfg.InstanceID,
+		"operation", "init",
 	)
 
 	return &Logger{
@@ -392,4 +395,60 @@ func (lm *LoggerManager) Close() error {
 	// Implementation would depend on whether we're tracking file handles
 	// For now, this is a placeholder
 	return nil
+}
+
+// SIP returns a logger with operation=sip
+func (l *Logger) SIP() *Logger {
+	return l.WithFields(map[string]interface{}{"operation": "sip"})
+}
+
+// Routing returns a logger with operation=routing
+func (l *Logger) Routing() *Logger {
+	return l.WithFields(map[string]interface{}{"operation": "routing"})
+}
+
+// Media returns a logger with operation=media
+func (l *Logger) Media() *Logger {
+	return l.WithFields(map[string]interface{}{"operation": "media"})
+}
+
+// parseLogLevel parses a string log level to slog.Level
+func parseLogLevel(level string) (slog.Level, error) {
+	switch LogLevel(strings.ToLower(level)) {
+	case LevelDebug:
+		return slog.LevelDebug, nil
+	case LevelInfo:
+		return slog.LevelInfo, nil
+	case LevelWarn:
+		return slog.LevelWarn, nil
+	case LevelError:
+		return slog.LevelError, nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("invalid log level: %s", level)
+	}
+}
+
+// createHandler creates a slog.Handler based on format
+func createHandler(format string, writer io.Writer, level slog.Level, addSource bool) slog.Handler {
+	opts := &slog.HandlerOptions{
+		Level:     level,
+		AddSource: addSource,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{
+					Key:   "timestamp",
+					Value: slog.StringValue(a.Value.Time().Format(time.RFC3339Nano)),
+				}
+			}
+			return a
+		},
+	}
+	switch strings.ToLower(format) {
+	case "json":
+		return slog.NewJSONHandler(writer, opts)
+	case "text":
+		return slog.NewTextHandler(writer, opts)
+	default:
+		return slog.NewTextHandler(writer, opts)
+	}
 }

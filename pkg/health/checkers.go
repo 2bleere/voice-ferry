@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/2bleere/voice-ferry/pkg/config"
 )
 
 // RedisClient interface for health checking
@@ -74,14 +76,8 @@ func (e *EtcdHealthChecker) Timeout() time.Duration {
 
 // RTPEngineClient interface for health checking
 type RTPEngineClient interface {
-	GetInstances() []RTPEngineInstance
+	GetInstances() []config.RTPEngineInstance
 	IsInstanceHealthy(ctx context.Context, instanceID string) bool
-}
-
-// RTPEngineInstance represents an RTP engine instance
-type RTPEngineInstance struct {
-	ID      string
-	Enabled bool
 }
 
 // RTPEngineHealthChecker checks RTPEngine connectivity
@@ -246,14 +242,14 @@ func (c *CustomHealthChecker) Check(ctx context.Context) (err error) {
 	if c.checkFunc == nil {
 		return fmt.Errorf("no check function defined")
 	}
-	
+
 	// Recover from panics and convert them to errors
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("health check panicked: %v", r)
 		}
 	}()
-	
+
 	return c.checkFunc(ctx)
 }
 

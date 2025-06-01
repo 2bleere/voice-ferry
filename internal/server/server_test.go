@@ -318,8 +318,16 @@ func createTestConfig() *config.Config {
 			Enabled: false,
 		},
 		RTPEngine: config.RTPEngineConfig{
-			Host: "127.0.0.1",
-			Port: 22222,
+			Instances: []config.RTPEngineInstance{
+				{
+					ID:      "rtpengine-test",
+					Host:    "127.0.0.1",
+					Port:    22222,
+					Weight:  100,
+					Enabled: true,
+				},
+			},
+			Timeout: 5 * time.Second,
 		},
 	}
 }

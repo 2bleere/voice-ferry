@@ -123,7 +123,7 @@ func (s *Server) handleRequest(ctx context.Context, req *sip.Request, tx sip.Ser
 
 // handleInvite handles INVITE requests - core B2BUA logic
 func (s *Server) handleInvite(ctx context.Context, req *sip.Request, tx sip.ServerTransaction) error {
-	log.Printf("Handling INVITE from %s to %s", req.From().Address, req.To().Address)
+	log.Printf("Handling INVITE from %s to %s", req.From().Address.String(), req.To().Address.String())
 
 	// Check authentication and extract username
 	username := ""
@@ -259,7 +259,7 @@ func (s *Server) handleCANCEL(ctx context.Context, req *sip.Request, tx sip.Serv
 
 // handleREGISTER handles REGISTER requests
 func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.ServerTransaction) error {
-	log.Printf("Handling REGISTER from %s", req.From().Address)
+	log.Printf("Handling REGISTER from %s", req.From().Address.String())
 
 	// Check if authentication is required
 	authRequired := s.digestAuth.IsAuthenticationRequired()
@@ -272,7 +272,7 @@ func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.Se
 
 		if authHeader == nil {
 			// No authorization header, send challenge
-			log.Printf("No authorization header, sending challenge to %s", req.From().Address)
+			log.Printf("No authorization header, sending challenge to %s", req.From().Address.String())
 			res := sip.NewResponseFromRequest(req, 401, "Unauthorized", nil)
 
 			// Add WWW-Authenticate header
@@ -291,13 +291,13 @@ func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.Se
 
 		valid, username := s.digestAuth.ValidateCredentials(authValue, method, uri)
 		if !valid {
-			log.Printf("Authentication failed for user %s from %s", username, req.From().Address)
+			log.Printf("Authentication failed for user %s from %s", username, req.From().Address.String())
 			res := sip.NewResponseFromRequest(req, 403, "Forbidden", nil)
 			tx.Respond(res)
 			return nil
 		}
 
-		log.Printf("Authentication successful for user %s from %s", username, req.From().Address)
+		log.Printf("Authentication successful for user %s from %s", username, req.From().Address.String())
 	}
 
 	// Authentication successful or not required
@@ -338,13 +338,13 @@ func (s *Server) applyRoutingRules(req *sip.Request) (string, error) {
 	result, err := s.routingEngine.RouteRequest(req, sourceIP)
 	if err != nil {
 		log.Printf("No routing rule matched for request from %s to %s: %v",
-			req.From().Address, req.To().Address, err)
+			req.From().Address.String(), req.To().Address.String(), err)
 		// Return default route as fallback
 		return "sip:127.0.0.1:5061", nil
 	}
 
 	log.Printf("Matched routing rule: %s (%s) for request %s -> %s",
-		result.RuleID, result.RuleName, req.From().Address, req.To().Address)
+		result.RuleID, result.RuleName, req.From().Address.String(), req.To().Address.String())
 
 	// Check if call should be rejected
 	if result.ShouldReject() {
