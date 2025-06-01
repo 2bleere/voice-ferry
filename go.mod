@@ -1,6 +1,8 @@
 module github.com/2bleere/voice-ferry
 
-go 1.23
+go 1.23.0
+
+toolchain go1.24.3
 
 require (
 	github.com/emiago/sipgo v0.32.1

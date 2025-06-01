@@ -62,6 +62,9 @@ jobs:
       run: |
         go install golang.org/x/tools/cmd/goimports@latest
 
+    - name: Go module tidy
+      run: go mod tidy
+
     - name: Go format check
       run: |
         # Exclude generated files from formatting check
