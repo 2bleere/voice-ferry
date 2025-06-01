@@ -41,7 +41,7 @@ func (suite *StorageIntegrationTestSuite) SetupSuite() {
 	var err error
 	suite.etcdClient, err = etcd.NewClient(etcdConfig)
 	if err != nil {
-		suite.T().Logf("Etcd not available for integration test: %v", err)
+		suite.T.Logf("Etcd not available for integration test: %v", err)
 		suite.etcdClient = nil
 	}
 
@@ -58,7 +58,7 @@ func (suite *StorageIntegrationTestSuite) SetupSuite() {
 
 	suite.redisClient, err = redis.NewClient(redisConfig)
 	if err != nil {
-		suite.T().Logf("Redis not available for integration test: %v", err)
+		suite.T.Logf("Redis not available for integration test: %v", err)
 		suite.redisClient = nil
 	}
 }
@@ -79,13 +79,13 @@ func (suite *StorageIntegrationTestSuite) TearDownSuite() {
 
 func (suite *StorageIntegrationTestSuite) TestEtcdIntegration() {
 	if suite.etcdClient == nil {
-		suite.T().Skip("Etcd not available for integration test")
+		suite.T.Skip("Etcd not available for integration test")
 		return
 	}
 
 	// Test health check
 	err := suite.etcdClient.HealthCheck(suite.ctx)
-	require.NoError(suite.T(), err, "Etcd health check should succeed")
+	require.NoError(suite.T, err, "Etcd health check should succeed")
 
 	// Test routing rule storage and retrieval
 	testRule := &v1.RoutingRule{
@@ -115,19 +115,19 @@ func (suite *StorageIntegrationTestSuite) TestEtcdIntegration() {
 
 	// Store the rule
 	err = suite.etcdClient.StoreRoutingRule(suite.ctx, testRule)
-	require.NoError(suite.T(), err, "Should store routing rule in etcd")
+	require.NoError(suite.T, err, "Should store routing rule in etcd")
 
 	// Retrieve the rule
 	retrievedRule, err := suite.etcdClient.GetRoutingRule(suite.ctx, testRule.RuleId)
-	require.NoError(suite.T(), err, "Should retrieve routing rule from etcd")
-	assert.Equal(suite.T(), testRule.RuleId, retrievedRule.RuleId)
-	assert.Equal(suite.T(), testRule.Name, retrievedRule.Name)
-	assert.Equal(suite.T(), testRule.Priority, retrievedRule.Priority)
+	require.NoError(suite.T, err, "Should retrieve routing rule from etcd")
+	assert.Equal(suite.T, testRule.RuleId, retrievedRule.RuleId)
+	assert.Equal(suite.T, testRule.Name, retrievedRule.Name)
+	assert.Equal(suite.T, testRule.Priority, retrievedRule.Priority)
 
 	// List all rules
 	rules, err := suite.etcdClient.ListRoutingRules(suite.ctx)
-	require.NoError(suite.T(), err, "Should list routing rules from etcd")
-	assert.GreaterOrEqual(suite.T(), len(rules), 1, "Should have at least one rule")
+	require.NoError(suite.T, err, "Should list routing rules from etcd")
+	assert.GreaterOrEqual(suite.T, len(rules), 1, "Should have at least one rule")
 
 	// Test configuration storage
 	testConfig := map[string]interface{}{
@@ -137,12 +137,12 @@ func (suite *StorageIntegrationTestSuite) TestEtcdIntegration() {
 	}
 
 	err = suite.etcdClient.StoreConfig(suite.ctx, "test_config", testConfig)
-	require.NoError(suite.T(), err, "Should store configuration in etcd")
+	require.NoError(suite.T, err, "Should store configuration in etcd")
 
 	var retrievedConfig map[string]interface{}
 	err = suite.etcdClient.GetConfig(suite.ctx, "test_config", &retrievedConfig)
-	require.NoError(suite.T(), err, "Should retrieve configuration from etcd")
-	assert.Equal(suite.T(), testConfig["test_setting"], retrievedConfig["test_setting"])
+	require.NoError(suite.T, err, "Should retrieve configuration from etcd")
+	assert.Equal(suite.T, testConfig["test_setting"], retrievedConfig["test_setting"])
 
 	// Test session storage
 	sessionData := map[string]string{
@@ -152,30 +152,30 @@ func (suite *StorageIntegrationTestSuite) TestEtcdIntegration() {
 	}
 
 	err = suite.etcdClient.StoreSession(suite.ctx, "test-session-456", sessionData)
-	require.NoError(suite.T(), err, "Should store session in etcd")
+	require.NoError(suite.T, err, "Should store session in etcd")
 
 	var retrievedSession map[string]string
 	err = suite.etcdClient.GetSession(suite.ctx, "test-session-456", &retrievedSession)
-	require.NoError(suite.T(), err, "Should retrieve session from etcd")
-	assert.Equal(suite.T(), sessionData["call_id"], retrievedSession["call_id"])
+	require.NoError(suite.T, err, "Should retrieve session from etcd")
+	assert.Equal(suite.T, sessionData["call_id"], retrievedSession["call_id"])
 
 	// Cleanup
 	err = suite.etcdClient.DeleteRoutingRule(suite.ctx, testRule.RuleId)
-	assert.NoError(suite.T(), err, "Should delete routing rule from etcd")
+	assert.NoError(suite.T, err, "Should delete routing rule from etcd")
 
 	err = suite.etcdClient.DeleteSession(suite.ctx, "test-session-456")
-	assert.NoError(suite.T(), err, "Should delete session from etcd")
+	assert.NoError(suite.T, err, "Should delete session from etcd")
 }
 
 func (suite *StorageIntegrationTestSuite) TestRedisIntegration() {
 	if suite.redisClient == nil {
-		suite.T().Skip("Redis not available for integration test")
+		suite.T.Skip("Redis not available for integration test")
 		return
 	}
 
 	// Test health check
 	err := suite.redisClient.HealthCheck(suite.ctx)
-	require.NoError(suite.T(), err, "Redis health check should succeed")
+	require.NoError(suite.T, err, "Redis health check should succeed")
 
 	// Test session storage and retrieval
 	sessionID := "test-session-" + time.Now().Format("20060102150405")
@@ -188,17 +188,17 @@ func (suite *StorageIntegrationTestSuite) TestRedisIntegration() {
 	}
 
 	err = suite.redisClient.StoreSession(suite.ctx, sessionID, sessionData, 1*time.Hour)
-	require.NoError(suite.T(), err, "Should store session in Redis")
+	require.NoError(suite.T, err, "Should store session in Redis")
 
 	var retrievedSession map[string]interface{}
 	err = suite.redisClient.GetSessionData(suite.ctx, sessionID, &retrievedSession)
-	require.NoError(suite.T(), err, "Should retrieve session from Redis")
-	assert.Equal(suite.T(), sessionData["call_id"], retrievedSession["call_id"])
-	assert.Equal(suite.T(), sessionData["user_agent"], retrievedSession["user_agent"])
+	require.NoError(suite.T, err, "Should retrieve session from Redis")
+	assert.Equal(suite.T, sessionData["call_id"], retrievedSession["call_id"])
+	assert.Equal(suite.T, sessionData["user_agent"], retrievedSession["user_agent"])
 
 	// Test session TTL extension
 	err = suite.redisClient.ExtendSession(suite.ctx, sessionID, 2*time.Hour)
-	require.NoError(suite.T(), err, "Should extend session TTL")
+	require.NoError(suite.T, err, "Should extend session TTL")
 
 	// Test call state storage
 	callID := "test-call-" + time.Now().Format("20060102150405")
@@ -212,17 +212,17 @@ func (suite *StorageIntegrationTestSuite) TestRedisIntegration() {
 	}
 
 	err = suite.redisClient.StoreCallState(suite.ctx, callID, callState)
-	require.NoError(suite.T(), err, "Should store call state in Redis")
+	require.NoError(suite.T, err, "Should store call state in Redis")
 
 	var retrievedCallState map[string]interface{}
 	err = suite.redisClient.GetCallState(suite.ctx, callID, &retrievedCallState)
-	require.NoError(suite.T(), err, "Should retrieve call state from Redis")
-	assert.Equal(suite.T(), callState["session_id"], retrievedCallState["session_id"])
+	require.NoError(suite.T, err, "Should retrieve call state from Redis")
+	assert.Equal(suite.T, callState["session_id"], retrievedCallState["session_id"])
 
 	// Test active calls listing
 	activeCalls, err := suite.redisClient.ListActiveCalls(suite.ctx)
-	require.NoError(suite.T(), err, "Should list active calls")
-	assert.Contains(suite.T(), activeCalls, callID, "Should contain our test call")
+	require.NoError(suite.T, err, "Should list active calls")
+	assert.Contains(suite.T, activeCalls, callID, "Should contain our test call")
 
 	// Test cache operations
 	cacheKey := "test-cache-key"
@@ -233,29 +233,29 @@ func (suite *StorageIntegrationTestSuite) TestRedisIntegration() {
 	}
 
 	err = suite.redisClient.StoreCache(suite.ctx, cacheKey, cacheData, 30*time.Minute)
-	require.NoError(suite.T(), err, "Should store data in cache")
+	require.NoError(suite.T, err, "Should store data in cache")
 
 	var retrievedCacheData map[string]string
 	err = suite.redisClient.GetCache(suite.ctx, cacheKey, &retrievedCacheData)
-	require.NoError(suite.T(), err, "Should retrieve data from cache")
-	assert.Equal(suite.T(), cacheData["user_id"], retrievedCacheData["user_id"])
+	require.NoError(suite.T, err, "Should retrieve data from cache")
+	assert.Equal(suite.T, cacheData["user_id"], retrievedCacheData["user_id"])
 
 	// Test metrics operations
 	metricName := "test_metric"
 	err = suite.redisClient.IncrementMetric(suite.ctx, metricName)
-	require.NoError(suite.T(), err, "Should increment metric")
+	require.NoError(suite.T, err, "Should increment metric")
 
 	err = suite.redisClient.IncrementMetricBy(suite.ctx, metricName, 5)
-	require.NoError(suite.T(), err, "Should increment metric by amount")
+	require.NoError(suite.T, err, "Should increment metric by amount")
 
 	metricValue, err := suite.redisClient.GetMetric(suite.ctx, metricName)
-	require.NoError(suite.T(), err, "Should get metric value")
-	assert.Equal(suite.T(), int64(6), metricValue, "Metric should be 6 (1 + 5)")
+	require.NoError(suite.T, err, "Should get metric value")
+	assert.Equal(suite.T, int64(6), metricValue, "Metric should be 6 (1 + 5)")
 
 	// Test all metrics retrieval
 	allMetrics, err := suite.redisClient.GetAllMetrics(suite.ctx)
-	require.NoError(suite.T(), err, "Should get all metrics")
-	assert.Contains(suite.T(), allMetrics, metricName, "Should contain our test metric")
+	require.NoError(suite.T, err, "Should get all metrics")
+	assert.Contains(suite.T, allMetrics, metricName, "Should contain our test metric")
 
 	// Test pub/sub functionality
 	testChannel := "test-channel"
@@ -265,31 +265,31 @@ func (suite *StorageIntegrationTestSuite) TestRedisIntegration() {
 	}
 
 	err = suite.redisClient.Publish(suite.ctx, testChannel, testMessage)
-	require.NoError(suite.T(), err, "Should publish message to channel")
+	require.NoError(suite.T, err, "Should publish message to channel")
 
 	// Test pipeline operations
 	pipeline := suite.redisClient.Pipeline()
-	assert.NotNil(suite.T(), pipeline, "Should get Redis pipeline")
+	assert.NotNil(suite.T, pipeline, "Should get Redis pipeline")
 
 	// Test active sessions listing
 	activeSessions, err := suite.redisClient.GetActiveSessionIDs(suite.ctx)
-	require.NoError(suite.T(), err, "Should list active sessions")
-	assert.Contains(suite.T(), activeSessions, sessionID, "Should contain our test session")
+	require.NoError(suite.T, err, "Should list active sessions")
+	assert.Contains(suite.T, activeSessions, sessionID, "Should contain our test session")
 
 	// Cleanup
 	err = suite.redisClient.DeleteSession(suite.ctx, sessionID)
-	assert.NoError(suite.T(), err, "Should delete session from Redis")
+	assert.NoError(suite.T, err, "Should delete session from Redis")
 
 	err = suite.redisClient.DeleteCallState(suite.ctx, callID)
-	assert.NoError(suite.T(), err, "Should delete call state from Redis")
+	assert.NoError(suite.T, err, "Should delete call state from Redis")
 
 	err = suite.redisClient.DeleteCache(suite.ctx, cacheKey)
-	assert.NoError(suite.T(), err, "Should delete cache data from Redis")
+	assert.NoError(suite.T, err, "Should delete cache data from Redis")
 }
 
 func (suite *StorageIntegrationTestSuite) TestEtcdWatchFunctionality() {
 	if suite.etcdClient == nil {
-		suite.T().Skip("Etcd not available for integration test")
+		suite.T.Skip("Etcd not available for integration test")
 		return
 	}
 
@@ -298,7 +298,7 @@ func (suite *StorageIntegrationTestSuite) TestEtcdWatchFunctionality() {
 	defer watchCancel()
 
 	watchChan := suite.etcdClient.WatchRoutingRules(watchCtx)
-	assert.NotNil(suite.T(), watchChan, "Should get watch channel")
+	assert.NotNil(suite.T, watchChan, "Should get watch channel")
 
 	// This is a basic test to ensure watch doesn't panic
 	// In a real scenario, you would test actual watch events
@@ -309,36 +309,36 @@ func (suite *StorageIntegrationTestSuite) TestStorageErrors() {
 	if suite.etcdClient != nil {
 		// Test non-existent rule retrieval
 		_, err := suite.etcdClient.GetRoutingRule(suite.ctx, "non-existent-rule")
-		assert.Error(suite.T(), err, "Should return error for non-existent rule")
+		assert.Error(suite.T, err, "Should return error for non-existent rule")
 
 		// Test non-existent config retrieval
 		var config map[string]interface{}
 		err = suite.etcdClient.GetConfig(suite.ctx, "non-existent-config", &config)
-		assert.Error(suite.T(), err, "Should return error for non-existent config")
+		assert.Error(suite.T, err, "Should return error for non-existent config")
 
 		// Test non-existent session retrieval
 		var session map[string]interface{}
 		err = suite.etcdClient.GetSession(suite.ctx, "non-existent-session", &session)
-		assert.Error(suite.T(), err, "Should return error for non-existent session")
+		assert.Error(suite.T, err, "Should return error for non-existent session")
 	}
 
 	if suite.redisClient != nil {
 		// Test non-existent session retrieval
 		_, err := suite.redisClient.GetSession(suite.ctx, "non-existent-session")
-		assert.Error(suite.T(), err, "Should return error for non-existent session")
+		assert.Error(suite.T, err, "Should return error for non-existent session")
 
 		// Test non-existent call state retrieval
 		var callState map[string]interface{}
 		err = suite.redisClient.GetCallState(suite.ctx, "non-existent-call", &callState)
-		assert.Error(suite.T(), err, "Should return error for non-existent call state")
+		assert.Error(suite.T, err, "Should return error for non-existent call state")
 
 		// Test non-existent cache retrieval
 		var cacheData map[string]interface{}
 		err = suite.redisClient.GetCache(suite.ctx, "non-existent-cache", &cacheData)
-		assert.Error(suite.T(), err, "Should return error for non-existent cache data")
+		assert.Error(suite.T, err, "Should return error for non-existent cache data")
 
 		// Test non-existent metric retrieval
 		_, err = suite.redisClient.GetMetric(suite.ctx, "non-existent-metric")
-		assert.Error(suite.T(), err, "Should return error for non-existent metric")
+		assert.Error(suite.T, err, "Should return error for non-existent metric")
 	}
 }

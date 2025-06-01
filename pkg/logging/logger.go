@@ -412,6 +412,26 @@ func (l *Logger) Media() *Logger {
 	return l.WithFields(map[string]interface{}{"operation": "media"})
 }
 
+// Info logs a message at info level.
+func (l *Logger) Info(msg string, args ...any) {
+	l.Logger.Info(msg, args...)
+}
+
+// Debug logs a message at debug level.
+func (l *Logger) Debug(msg string, args ...any) {
+	l.Logger.Debug(msg, args...)
+}
+
+// Warn logs a message at warn level.
+func (l *Logger) Warn(msg string, args ...any) {
+	l.Logger.Warn(msg, args...)
+}
+
+// Error logs a message at error level.
+func (l *Logger) Error(msg string, args ...any) {
+	l.Logger.Error(msg, args...)
+}
+
 // parseLogLevel parses a string log level to slog.Level
 func parseLogLevel(level string) (slog.Level, error) {
 	switch LogLevel(strings.ToLower(level)) {
