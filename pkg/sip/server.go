@@ -221,7 +221,9 @@ func (s *Server) handleBYE(ctx context.Context, req *sip.Request, tx sip.ServerT
 	dialog := s.dialogs.FindDialog(req.CallID().Value(), req.From().Address.String(), req.To().Address.String())
 	if dialog == nil {
 		res := sip.NewResponseFromRequest(req, 481, "Call/Transaction Does Not Exist", nil)
-		tx.Respond(res)
+		if err := tx.Respond(res); err != nil {
+			log.Printf("Failed to respond to transaction: %v", err)
+		}
 		return nil
 	}
 
@@ -229,7 +231,9 @@ func (s *Server) handleBYE(ctx context.Context, req *sip.Request, tx sip.ServerT
 	err := s.forwardRequest(req, dialog)
 	if err != nil {
 		res := sip.NewResponseFromRequest(req, 500, "Internal Server Error", nil)
-		tx.Respond(res)
+		if err2 := tx.Respond(res); err2 != nil {
+			log.Printf("Failed to respond to transaction: %v", err2)
+		}
 		return err
 	}
 
@@ -284,7 +288,9 @@ func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.Se
 			challenge := s.digestAuth.CreateChallenge(clientIP)
 			res.AppendHeader(challenge)
 
-			tx.Respond(res)
+			if err := tx.Respond(res); err != nil {
+				log.Printf("Failed to respond to transaction: %v", err)
+			}
 			return nil
 		}
 
@@ -297,7 +303,9 @@ func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.Se
 		if !valid {
 			log.Printf("Authentication failed for user %s from %s", username, req.From().Address.String())
 			res := sip.NewResponseFromRequest(req, 403, "Forbidden", nil)
-			tx.Respond(res)
+			if err := tx.Respond(res); err != nil {
+				log.Printf("Failed to respond to transaction: %v", err)
+			}
 			return nil
 		}
 
