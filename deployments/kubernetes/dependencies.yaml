@@ -1,0 +1,308 @@
+# Voice Ferry Dependencies - Production Ready
+# Redis, etcd, and RTPEngine services for Voice Ferry B2BUA
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd-headless # Headless service for StatefulSet
+  namespace: voice-ferry
+  labels:
+    app: etcd
+spec:
+  clusterIP: None # This makes the service headless
+  ports:
+  - port: 2379
+    name: client
+  - port: 2380
+    name: peer
+  selector:
+    app: etcd
+---
+apiVersion: apps/v1
+kind: StatefulSet # Changed from Deployment to StatefulSet for persistent, stable storage per replica
+metadata:
+  name: etcd
+  namespace: voice-ferry
+  labels:
+    app: etcd
+    component: database
+spec:
+  serviceName: etcd-headless # Must match the headless service name
+  replicas: 3  # HA cluster
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+        component: database
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.5.9
+        command:
+        - etcd
+        - --name=$(HOSTNAME)
+        - --data-dir=/etcd-data
+        - --listen-client-urls=http://0.0.0.0:2379
+        - --advertise-client-urls=http://$(HOSTNAME).etcd-headless:2379 # Use headless service for advertise
+        - --listen-peer-urls=http://0.0.0.0:2380
+        - --initial-advertise-peer-urls=http://$(HOSTNAME).etcd-headless:2380 # Use headless service for initial advertise
+        - --initial-cluster=etcd-0.etcd-headless:2380,etcd-1.etcd-headless:2380,etcd-2.etcd-headless:2380 # Use headless service for initial cluster
+        - --initial-cluster-token=voice-ferry-cluster
+        - --initial-cluster-state=new
+        - --log-level=info
+        - --logger=zap
+        - --log-outputs=stderr
+        - --auto-compaction-retention=1h
+        - --max-request-bytes=33554432
+        - --quota-backend-bytes=8589934592
+        env:
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 2379
+          name: client
+        - containerPort: 2380
+          name: peer
+        volumeMounts:
+        - name: etcd-data # This name must match the volumeClaimTemplates name
+          mountPath: /etcd-data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 2379
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 2379
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+  volumeClaimTemplates: # Define persistent storage for each replica
+  - metadata:
+      name: etcd-data # Name must match volumeMounts name in the container spec
+    spec:
+      accessModes: [ "ReadWriteOnce" ] # Each pod gets its own volume
+      resources:
+        requests:
+          storage: 2Gi # Request 2GB of storage for each etcd replica
+      storageClassName: longhorn # Use a default storage class; adjust if needed for your cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: voice-ferry
+  labels:
+    app: etcd
+spec:
+  ports:
+  - port: 2379
+    name: client
+  - port: 2380
+    name: peer
+  selector:
+    app: etcd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim # Added PVC for Redis
+metadata:
+  name: redis-data
+  namespace: voice-ferry
+spec:
+  accessModes:
+    - ReadWriteOnce # Redis runs as a single replica, so ReadWriteOnce is appropriate
+  resources:
+    requests:
+      storage: 1Gi # Request 1GB of storage for Redis
+  storageClassName: longhorn # Use a default storage class; adjust if needed for your cluster
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: voice-ferry
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command:
+        - redis-server
+        - --appendonly
+        - "yes"
+        - --save
+        - "900 1"
+        - --save
+        - "300 10"
+        - --save
+        - "60 10000"
+        ports:
+        - containerPort: 6379
+          name: redis
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim: # Changed from emptyDir to persistentVolumeClaim
+          claimName: redis-data # Reference the PVC defined above
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: voice-ferry
+  labels:
+    app: redis
+spec:
+  ports:
+  - port: 6379
+    name: redis
+  selector:
+    app: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtpengine
+  namespace: voice-ferry
+  labels:
+    app: rtpengine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtpengine
+  template:
+    metadata:
+      labels:
+        app: rtpengine
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: rtpengine
+        image: 2bleere/rtpengine:latest
+        command:
+        - rtpengine
+        - --interface=eth0
+        - --listen-ng=22222
+        - --port-min=10000
+        - --port-max=20000
+        - --log-level=6
+        - --log-stderr
+        - --no-fallback
+        ports:
+        - containerPort: 22222
+          protocol: UDP
+          name: ng-control
+        - containerPort: 10000
+          protocol: UDP
+          name: rtp-start
+        - containerPort: 20000
+          protocol: UDP
+          name: rtp-end
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep rtpengine"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep rtpengine"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rtpengine
+  namespace: voice-ferry
+  labels:
+    app: rtpengine
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: rtpengine
+  ports:
+  - port: 22222
+    protocol: UDP
+    name: ng-control
+  - port: 10000
+    protocol: UDP
+    name: rtp-start
+  - port: 20000
+    protocol: UDP
+    name: rtp-end

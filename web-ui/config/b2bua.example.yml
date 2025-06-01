@@ -1,0 +1,366 @@
+# Voice Ferry B2BUA Configuration Example
+# This file demonstrates all available configuration options
+
+# SIP Configuration
+sip:
+  # Basic SIP settings
+  listen_address: "0.0.0.0"
+  listen_port: 5060
+  transport: "udp"  # udp, tcp, tls, ws, wss
+  
+  # SIP stack settings
+  user_agent: "Voice-Ferry-C4/1.0"
+  contact_user: "voice-ferry"
+  max_forwards: 70
+  
+  # Timers (in seconds)
+  timers:
+    t1: 0.5     # RTT estimate
+    t2: 4.0     # Maximum retransmit interval
+    t4: 5.0     # Maximum duration message remains in network
+    
+  # Authentication
+  auth:
+    enabled: true
+    realm: "voice-ferry.local"
+    algorithm: "MD5"
+    
+  # TLS settings (when transport is tls)
+  tls:
+    cert_file: "/app/certs/server.crt"
+    key_file: "/app/certs/server.key"
+    ca_file: "/app/certs/ca.crt"
+    verify_client: false
+
+# B2BUA Core Settings
+b2bua:
+  # Call processing
+  max_concurrent_calls: 1000
+  call_timeout: 300  # seconds
+  ring_timeout: 180  # seconds
+  
+  # Media handling
+  media:
+    enabled: true
+    rtp_proxy: true
+    codec_filter: ["PCMU", "PCMA", "G729"]
+    dtmf_relay: "rfc2833"  # rfc2833, inband, sip_info
+    
+  # Session management
+  session:
+    timer_interval: 30  # seconds
+    cleanup_interval: 300  # seconds
+    max_session_time: 7200  # seconds (2 hours)
+
+# Redis Configuration
+redis:
+  # Connection settings
+  host: "redis"
+  port: 6379
+  password: ""
+  database: 0
+  
+  # Connection pool
+  pool:
+    max_idle: 10
+    max_active: 100
+    idle_timeout: 240  # seconds
+    
+  # Timeouts
+  timeouts:
+    connect: 5    # seconds
+    read: 30     # seconds
+    write: 30    # seconds
+    
+  # Key prefixes
+  prefixes:
+    session: "vf:session:"
+    call: "vf:call:"
+    metrics: "vf:metrics:"
+
+# etcd Configuration
+etcd:
+  # Endpoints
+  endpoints:
+    - "http://etcd:2379"
+    
+  # Authentication
+  username: ""
+  password: ""
+  
+  # TLS settings
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+    
+  # Timeouts
+  timeouts:
+    dial: 5      # seconds
+    request: 10  # seconds
+    
+  # Key prefixes
+  prefixes:
+    config: "/voice-ferry/config/"
+    routes: "/voice-ferry/routes/"
+    policies: "/voice-ferry/policies/"
+
+# Routing Configuration
+routing:
+  # Default route
+  default_route:
+    enabled: true
+    target: "sip:gateway@192.168.1.100:5060"
+    
+  # Route tables
+  routes:
+    - name: "local"
+      pattern: "^1[0-9]{3}$"  # 4-digit extensions
+      target: "sip:pbx@192.168.1.10:5060"
+      priority: 100
+      
+    - name: "pstn"
+      pattern: "^[2-9][0-9]{9}$"  # 10-digit PSTN numbers
+      target: "sip:carrier@203.0.113.1:5060"
+      priority: 50
+      
+    - name: "international"
+      pattern: "^011[0-9]+$"  # International calls
+      target: "sip:intl-gateway@203.0.113.2:5060"
+      priority: 25
+      
+  # Route selection
+  selection:
+    algorithm: "round_robin"  # round_robin, weighted, least_cost
+    failover: true
+    blacklist_duration: 300  # seconds
+
+# Load Balancing
+load_balancing:
+  enabled: true
+  algorithm: "round_robin"  # round_robin, weighted, least_connections
+  
+  # Health checking
+  health_check:
+    enabled: true
+    interval: 30  # seconds
+    timeout: 5    # seconds
+    method: "OPTIONS"
+    
+  # Targets
+  targets:
+    - uri: "sip:gw1@192.168.1.101:5060"
+      weight: 100
+      enabled: true
+      
+    - uri: "sip:gw2@192.168.1.102:5060"
+      weight: 100
+      enabled: true
+
+# Security Policies
+security:
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    calls_per_second: 10
+    calls_per_minute: 100
+    burst_size: 20
+    
+  # IP filtering
+  ip_filtering:
+    enabled: true
+    whitelist:
+      - "192.168.1.0/24"
+      - "10.0.0.0/8"
+    blacklist:
+      - "192.0.2.0/24"
+      
+  # DDoS protection
+  ddos_protection:
+    enabled: true
+    threshold: 1000  # requests per second
+    ban_duration: 3600  # seconds
+    
+  # SIP security
+  sip_security:
+    check_user_agent: true
+    allowed_methods:
+      - "INVITE"
+      - "ACK"
+      - "BYE"
+      - "CANCEL"
+      - "OPTIONS"
+      - "REGISTER"
+
+# Monitoring and Metrics
+monitoring:
+  # Metrics collection
+  metrics:
+    enabled: true
+    interval: 30  # seconds
+    retention: 7  # days
+    
+  # Prometheus integration
+  prometheus:
+    enabled: false
+    port: 9090
+    path: "/metrics"
+    
+  # Alerting
+  alerting:
+    enabled: true
+    thresholds:
+      cpu_usage: 80      # percent
+      memory_usage: 85   # percent
+      call_failure_rate: 10  # percent
+      concurrent_calls: 800  # count
+      
+  # SNMP (if enabled)
+  snmp:
+    enabled: false
+    community: "public"
+    port: 161
+
+# Logging Configuration
+logging:
+  # Log levels: debug, info, warn, error
+  level: "info"
+  
+  # Output destinations
+  outputs:
+    - type: "console"
+      format: "text"  # text, json
+      
+    - type: "file"
+      path: "/app/logs/voice-ferry.log"
+      format: "json"
+      max_size: "100MB"
+      max_backups: 5
+      
+    - type: "syslog"
+      network: "udp"
+      address: "localhost:514"
+      facility: "local0"
+      
+  # Component-specific logging
+  components:
+    sip: "debug"
+    b2bua: "info"
+    routing: "info"
+    media: "warn"
+
+# gRPC API Configuration
+grpc:
+  # Server settings
+  server:
+    address: "0.0.0.0"
+    port: 50051
+    
+  # TLS settings
+  tls:
+    enabled: false
+    cert_file: "/app/certs/grpc-server.crt"
+    key_file: "/app/certs/grpc-server.key"
+    ca_file: "/app/certs/grpc-ca.crt"
+    
+  # Authentication
+  auth:
+    enabled: true
+    method: "token"  # token, mtls, none
+    tokens:
+      - "voice-ferry-admin-token"
+      
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_second: 100
+
+# Database Configuration (optional)
+database:
+  # Database type: postgres, mysql, sqlite
+  type: "postgres"
+  
+  # Connection settings
+  connection:
+    host: "postgres"
+    port: 5432
+    database: "voice_ferry"
+    username: "voice_ferry"
+    password: "password"
+    sslmode: "disable"
+    
+  # Connection pool
+  pool:
+    max_open: 25
+    max_idle: 5
+    max_lifetime: 300  # seconds
+    
+  # Migration settings
+  migration:
+    auto_migrate: true
+    migration_path: "/app/migrations"
+
+# CDR (Call Detail Records) Configuration
+cdr:
+  enabled: true
+  
+  # Output destinations
+  outputs:
+    - type: "database"
+      table: "call_records"
+      
+    - type: "file"
+      path: "/app/cdr/cdr.csv"
+      format: "csv"
+      rotation: "daily"
+      
+    - type: "syslog"
+      facility: "local1"
+      
+  # Fields to include
+  fields:
+    - "call_id"
+    - "caller"
+    - "callee"
+    - "start_time"
+    - "end_time"
+    - "duration"
+    - "status"
+    - "route"
+
+# Performance Tuning
+performance:
+  # Worker configuration
+  workers:
+    sip_workers: 4
+    media_workers: 2
+    
+  # Buffer sizes
+  buffers:
+    sip_buffer_size: 65536
+    media_buffer_size: 1024
+    
+  # Garbage collection
+  gc:
+    target_percent: 100
+    max_pause: 10  # milliseconds
+
+# Development/Debug Settings
+debug:
+  enabled: false
+  
+  # SIP message tracing
+  sip_trace:
+    enabled: false
+    output: "/app/logs/sip-trace.log"
+    
+  # Performance profiling
+  profiling:
+    enabled: false
+    port: 6060
+    
+  # Memory debugging
+  memory_debug:
+    enabled: false
+    heap_dump_path: "/app/dumps/"

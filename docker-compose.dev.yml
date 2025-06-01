@@ -1,0 +1,203 @@
+services:
+  # SIP B2BUA Server
+  b2bua:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: dev
+        BUILD_TIME: ${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+    container_name: sip-b2bua
+    ports:
+      - "5060:5060/udp"  # SIP
+      - "8081:8080"      # Health checks
+      - "9090:9090"      # Metrics
+      - "50051:50051"    # gRPC
+    environment:
+      - LOG_LEVEL=debug
+      - CONFIG_FILE=/app/configs/development.yaml
+      - REDIS_URL=redis://redis:6379
+      - ETCD_ENDPOINTS=http://etcd:2379
+      - RTPENGINE_HOST=rtpengine
+      - RTPENGINE_PORT=22222
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      rtpengine:
+        condition: service_started
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for session storage
+  redis:
+    image: redis:7-alpine
+    container_name: sip-b2bua-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./configs/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # etcd for distributed configuration
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: sip-b2bua-etcd
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    environment:
+      - ETCD_NAME=etcd0
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_RETENTION=1
+    volumes:
+      - etcd_data:/etcd-data
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RTPEngine for media relay
+  rtpengine:
+    image: 2bleere/rtpengine:latest
+    container_name: sip-b2bua-rtpengine
+    network_mode: host
+    command: >
+      rtpengine
+      --interface=eth0
+      --listen-ng=22222
+      --port-min=30000
+      --port-max=30100
+      --log-level=6
+      --log-stderr
+      --no-fallback
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sip-b2bua-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.enable-lifecycle'
+      - '--web.listen-address=0.0.0.0:9090'
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sip-b2bua-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: sip-b2bua-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - b2bua-network
+    restart: unless-stopped
+
+  # SIPp for testing
+  sipp:
+    image: ctaloi/sipp
+    container_name: sip-b2bua-sipp
+    volumes:
+      - ./test/sipp:/sipp/scenarios:ro
+    networks:
+      - b2bua-network
+    profiles:
+      - testing
+
+  # Load testing with Artillery
+  artillery:
+    image: artilleryio/artillery:latest
+    container_name: sip-b2bua-artillery
+    volumes:
+      - ./test/load:/scripts:ro
+    networks:
+      - b2bua-network
+    profiles:
+      - testing
+
+volumes:
+  redis_data:
+    driver: local
+  etcd_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  b2bua-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

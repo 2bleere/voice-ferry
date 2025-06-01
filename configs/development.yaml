@@ -1,0 +1,288 @@
+# Development configuration for SIP B2BUA
+# This configuration is optimized for development and testing
+
+# Server configuration
+server:
+  name: "sip-b2bua-dev"
+  version: "1.0.0-dev"
+  environment: "development"
+
+# SIP server configuration
+sip:
+  host: "0.0.0.0"
+  port: 5060
+  protocol: "udp"
+  user_agent: "SIP-B2BUA/1.0.0-dev"
+  max_forwards: 70
+  session_expires: 1800
+  record_route: true
+  
+  # Authentication (enabled for development testing)
+  auth:
+    enabled: true
+    realm: "sip-b2bua.local"
+    
+  # Transport configuration
+  transport:
+    udp:
+      enabled: true
+      port: 5060
+    tcp:
+      enabled: true
+      port: 5060
+    tls:
+      enabled: false
+      port: 5061
+      cert_file: ""
+      key_file: ""
+
+# gRPC server configuration
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+  max_message_size: 4194304  # 4MB
+  
+  # TLS configuration (disabled for development)
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    
+  # Authentication (disabled for development)
+  auth:
+    enabled: false
+    api_keys: []
+
+# WebRTC gateway configuration
+webrtc:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8081
+  ws_path: "/ws"
+  
+  # ICE servers configuration
+  stun_servers:
+    - "stun:stun.l.google.com:19302"
+    - "stun:stun1.l.google.com:19302"
+    - "stun:stun2.l.google.com:19302"
+    
+  turn_servers: []
+    # Example TURN server configuration:
+    # - url: "turn:turn.example.com:3478"
+    #   username: "user"
+    #   password: "pass"
+  
+  # TLS configuration (disabled for development)
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    
+  # Authentication (disabled for development)
+  auth:
+    enabled: false
+    jwt_secret: "dev-secret-key"
+    allowed_origins:
+      - "*"
+
+# Health check configuration
+health:
+  host: "0.0.0.0"
+  port: 8080
+  check_interval: "10s"
+  timeout: "5s"
+
+# Metrics configuration
+metrics:
+  enabled: true
+  host: "0.0.0.0"
+  port: 9090
+  path: "/metrics"
+  
+  # Prometheus configuration
+  prometheus:
+    namespace: "sip_b2bua"
+    subsystem: "dev"
+
+# Logging configuration
+logging:
+  level: "debug"
+  format: "text"  # text or json
+  development: true
+  version: "1.0.0-dev"
+  
+  # Output configuration
+  output:
+    console: true
+    file: false
+    file_path: "/app/logs/b2bua.log"
+    
+  # Log rotation (when file output is enabled)
+  rotation:
+    max_size: 100    # MB
+    max_backups: 5
+    max_age: 30      # days
+    compress: true
+
+# Redis configuration
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  
+  # Connection pool
+  pool:
+    max_idle: 10
+    max_active: 100
+    idle_timeout: "300s"
+    
+  # Session storage
+  session:
+    prefix: "session:"
+    ttl: "1h"
+    
+  # Session limit settings
+  enable_session_limits: true
+  max_sessions_per_user: 3          # Maximum number of concurrent sessions per user
+  session_limit_action: "reject"    # Action when limit reached: "reject" or "terminate_oldest"
+
+# etcd configuration
+etcd:
+  enabled: true
+  endpoints:
+    - "http://etcd:2379"
+  timeout: "5s"
+  
+  # Authentication (disabled for development)
+  auth:
+    enabled: false
+    username: ""
+    password: ""
+    
+  # TLS (disabled for development)
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+
+# RTPEngine configuration
+rtpengine:
+  instances:
+    - id: "rtpengine-1"
+      host: "localhost"
+      port: 22222
+      weight: 100
+      enabled: true
+  timeout: "5s"
+  
+  # Media configuration
+  media:
+    port_range:
+      min: 30000
+      max: 30100
+    interface: "0.0.0.0"
+    
+  # DTLS/SRTP support
+  dtls:
+    enabled: true
+    cert_file: ""
+    key_file: ""
+
+# Routing configuration
+routing:
+  default_destination: "127.0.0.1:5070"
+  
+  # Load balancing
+  load_balancing:
+    algorithm: "round_robin"  # round_robin, least_connections, weighted
+    
+  # Routing rules
+  rules:
+    - name: "default"
+      priority: 100
+      conditions:
+        - field: "method"
+          operator: "equals"
+          value: "INVITE"
+      destinations:
+        - host: "127.0.0.1"
+          port: 5070
+          weight: 1
+          
+    - name: "emergency"
+      priority: 1
+      conditions:
+        - field: "request_uri"
+          operator: "starts_with"
+          value: "sip:911"
+      destinations:
+        - host: "emergency.example.com"
+          port: 5060
+          weight: 1
+
+# Call configuration
+call:
+  max_duration: "7200s"  # 2 hours
+  ring_timeout: "60s"
+  
+  # Call recording
+  recording:
+    enabled: false
+    path: "/app/recordings"
+    format: "wav"
+    
+  # Call limits
+  limits:
+    max_concurrent: 1000
+    max_per_second: 50
+
+# Security configuration
+security:
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 300
+    burst: 50
+    
+  # IP filtering
+  ip_filtering:
+    enabled: false
+    allow_list: []
+    deny_list: []
+    
+  # DDoS protection
+  ddos_protection:
+    enabled: true
+    max_connections_per_ip: 100
+    connection_timeout: "30s"
+
+# Feature flags
+features:
+  webrtc_gateway: true
+  call_recording: false
+  presence: false
+  messaging: false
+  
+# Development specific settings
+development:
+  # Enable debug endpoints
+  debug_endpoints: true
+  
+  # Mock external services
+  mock_services:
+    rtpengine: true
+    
+  # Performance profiling
+  profiling:
+    enabled: true
+    cpu_profile: false
+    memory_profile: false
+    
+  # Hot reload
+  hot_reload:
+    enabled: true
+    watch_paths:
+      - "/app/configs"

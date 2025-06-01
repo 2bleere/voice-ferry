@@ -1,0 +1,113 @@
+# Voice Ferry SIP B2BUA Configuration
+# This is an example configuration file showing all available options
+
+# Global debug flag
+debug: false
+
+# SIP server configuration
+sip:
+  host: "0.0.0.0"
+  port: 5060
+  transport: "UDP"  # UDP, TCP, TLS, WS, WSS
+  tls:
+    enabled: false
+    cert_file: "/etc/ssl/certs/sip.crt"
+    key_file: "/etc/ssl/private/sip.key"
+    ca_file: "/etc/ssl/certs/ca.crt"
+  timeouts:
+    transaction: 32s
+    dialog: 1800s      # 30 minutes
+    registration: 3600s # 1 hour
+
+# gRPC API configuration
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+  tls:
+    enabled: false
+    cert_file: "/etc/ssl/certs/grpc.crt"
+    key_file: "/etc/ssl/private/grpc.key"
+    ca_file: "/etc/ssl/certs/ca.crt"
+
+# Health check endpoint configuration
+health:
+  host: "0.0.0.0"
+  port: 8080
+
+# etcd configuration for distributed settings
+etcd:
+  endpoints:
+    - "127.0.0.1:2379"
+  dial_timeout: 5s
+  username: ""
+  password: ""
+  tls:
+    enabled: false
+    cert_file: "/etc/ssl/certs/etcd.crt"
+    key_file: "/etc/ssl/private/etcd.key"
+    ca_file: "/etc/ssl/certs/ca.crt"
+
+# Redis configuration for caching and session storage
+redis:
+  enabled: true
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  database: 0
+  pool_size: 10
+  min_idle_conns: 5
+  max_idle_time: 300
+  conn_max_lifetime: 3600
+  timeout: 5
+  # Session limit settings - prevents individual users from consuming excessive resources
+  enable_session_limits: true
+  max_sessions_per_user: 5          # Default maximum number of concurrent sessions per user
+  session_limit_action: "reject"    # Action when limit reached: "reject" (default) or "terminate_oldest"
+  # User-specific session limits (override the default max_sessions_per_user)
+  user_session_limits:
+    high_volume_user: 20            # Allow this user to have 20 concurrent sessions
+    standard_user: 5                # Same as the default limit
+    restricted_user: 2              # More restrictive limit
+    unlimited_user: 0               # No limit (0 = unlimited)
+
+# rtpengine configuration
+rtpengine:
+  instances:
+    - id: "rtpengine-1"
+      host: "127.0.0.1"
+      port: 22222
+      weight: 100
+      enabled: true
+    # - id: "rtpengine-2"
+    #   host: "127.0.0.1"
+    #   port: 22223
+    #   weight: 50
+    #   enabled: true
+  timeout: 5s
+
+# Security configuration
+security:
+  jwt:
+    signing_key: "your-secret-key-change-this-in-production"
+    expiration: 24h
+    issuer: "b2bua"
+  sip:
+    ip_acls:
+      - name: "localhost"
+        action: "allow"
+        networks:
+          - "127.0.0.0/8"
+          - "::1/128"
+      - name: "private_networks"
+        action: "allow"
+        networks:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+      # - name: "blocked_network"
+      #   action: "deny"
+      #   networks:
+      #     - "192.168.100.0/24"
+    digest_auth:
+      realm: "sip.example.com"
+      enabled: false

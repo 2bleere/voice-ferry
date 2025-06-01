@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Voice Ferry Web UI
+  voice-ferry-ui:
+    build: .
+    container_name: voice-ferry-web-ui
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-voice-ferry-secret-key-change-in-production}
+      - REDIS_URL=redis://sip-b2bua-redis:6379
+      - ETCD_ENDPOINTS=http://sip-b2bua-etcd:2379
+      - GRPC_ENDPOINT=sip-b2bua:50051
+      - LOG_LEVEL=info
+      - RATE_LIMIT_MAX=100
+      - RATE_LIMIT_WINDOW=15
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - etcd
+    networks:
+      - voice-ferry-network
+      - sip-b2bua_voice-ferry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: voice-ferry-web-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # etcd for distributed configuration
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: voice-ferry-web-etcd
+    ports:
+      - "2381:2379"
+      - "2382:2380"
+    environment:
+      - ETCD_NAME=etcd0
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=voice-ferry-cluster
+      - ETCD_INITIAL_CLUSTER_STATE=new
+    volumes:
+      - etcd-data:/etcd-data
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis-data:
+  etcd-data:
+
+networks:
+  voice-ferry-network:
+    driver: bridge

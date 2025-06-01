@@ -1,0 +1,13 @@
+{
+  "name": "voice-ferry-mock-services",
+  "version": "1.0.0",
+  "description": "Mock services for Voice Ferry development",
+  "main": "sip-service.js",
+  "scripts": {
+    "start": "node sip-service.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.8.0",
+    "@grpc/proto-loader": "^0.7.0"
+  }
+}

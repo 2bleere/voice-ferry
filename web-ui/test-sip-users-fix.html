@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIP Users Button Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .btn { padding: 8px 12px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-warning { background-color: #ffc107; color: black; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .action-buttons { display: flex; gap: 5px; }
+        .status { margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>SIP Users Button Test</h1>
+    <p>This page tests the fixed SIP Users button functionality with event delegation.</p>
+
+    <div class="test-section">
+        <h3>Test Table with Action Buttons</h3>
+        <table id="sipUsersTable" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="border: 1px solid #ccc; padding: 8px;">Username</th>
+                    <th style="border: 1px solid #ccc; padding: 8px;">Status</th>
+                    <th style="border: 1px solid #ccc; padding: 8px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid #ccc; padding: 8px;">test-user-1</td>
+                    <td style="border: 1px solid #ccc; padding: 8px;">Enabled</td>
+                    <td style="border: 1px solid #ccc; padding: 8px;">
+                        <div class="action-buttons">
+                            <button class="btn btn-secondary" data-action="edit" data-username="test-user-1" title="Edit User">
+                                Edit
+                            </button>
+                            <button class="btn btn-warning" data-action="toggle" data-username="test-user-1" title="Disable User">
+                                Disable
+                            </button>
+                            <button class="btn btn-danger" data-action="delete" data-username="test-user-1" title="Delete User">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ccc; padding: 8px;">test-user-2</td>
+                    <td style="border: 1px solid #ccc; padding: 8px;">Disabled</td>
+                    <td style="border: 1px solid #ccc; padding: 8px;">
+                        <div class="action-buttons">
+                            <button class="btn btn-secondary" data-action="edit" data-username="test-user-2" title="Edit User">
+                                Edit
+                            </button>
+                            <button class="btn btn-success" data-action="toggle" data-username="test-user-2" title="Enable User">
+                                Enable
+                            </button>
+                            <button class="btn btn-danger" data-action="delete" data-username="test-user-2" title="Delete User">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="status" id="status">
+        Click any button to test the event delegation functionality.
+    </div>
+
+    <script>
+        // Mock SIP Users Manager for testing
+        class TestSipUsersManager {
+            constructor() {
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                // Event delegation for action buttons in the table
+                const sipUsersTable = document.getElementById('sipUsersTable');
+                if (sipUsersTable) {
+                    sipUsersTable.addEventListener('click', (e) => {
+                        const button = e.target.closest('button[data-action]');
+                        if (!button) return;
+
+                        const action = button.getAttribute('data-action');
+                        const username = button.getAttribute('data-username');
+
+                        switch (action) {
+                            case 'edit':
+                                this.editUser(username);
+                                break;
+                            case 'toggle':
+                                this.toggleUser(username);
+                                break;
+                            case 'delete':
+                                this.deleteUser(username);
+                                break;
+                        }
+                    });
+                }
+            }
+
+            editUser(username) {
+                this.updateStatus(`✅ Edit action triggered for user: ${username}`, 'success');
+            }
+
+            toggleUser(username) {
+                this.updateStatus(`✅ Toggle action triggered for user: ${username}`, 'success');
+            }
+
+            deleteUser(username) {
+                this.updateStatus(`✅ Delete action triggered for user: ${username}`, 'success');
+            }
+
+            updateStatus(message, type = 'info') {
+                const status = document.getElementById('status');
+                if (status) {
+                    status.innerHTML = message;
+                    status.style.backgroundColor = type === 'success' ? '#d4edda' : '#f8f9fa';
+                    status.style.color = type === 'success' ? '#155724' : '#495057';
+                    
+                    // Clear status after 3 seconds
+                    setTimeout(() => {
+                        status.innerHTML = 'Click any button to test the event delegation functionality.';
+                        status.style.backgroundColor = '#f8f9fa';
+                        status.style.color = '#495057';
+                    }, 3000);
+                }
+            }
+        }
+
+        // Initialize the test manager
+        document.addEventListener('DOMContentLoaded', () => {
+            new TestSipUsersManager();
+            console.log('Test SIP Users Manager initialized');
+        });
+    </script>
+</body>
+</html>

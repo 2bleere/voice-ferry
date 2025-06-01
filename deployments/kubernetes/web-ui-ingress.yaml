@@ -1,0 +1,115 @@
+# Voice Ferry Web UI - Ingress Configuration
+# Provides external access to the web interface with proper TLS termination
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voice-ferry-web-ui-ingress
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - voice-ferry.example.com
+    - web.voice-ferry.example.com
+    secretName: voice-ferry-web-ui-tls
+  rules:
+  - host: voice-ferry.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: voice-ferry-web-ui
+            port:
+              number: 3000
+  - host: web.voice-ferry.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: voice-ferry-web-ui
+            port:
+              number: 3000
+
+---
+# Network Policy for Web UI
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: voice-ferry-web-ui-netpol
+  namespace: voice-ferry
+spec:
+  podSelector:
+    matchLabels:
+      app: voice-ferry-web-ui
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+  - from:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow connection to Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow connection to etcd
+  - to:
+    - podSelector:
+        matchLabels:
+          app: etcd
+    ports:
+    - protocol: TCP
+      port: 2379
+  # Allow connection to B2BUA gRPC
+  - to:
+    - podSelector:
+        matchLabels:
+          app: voice-ferry-b2bua
+    ports:
+    - protocol: TCP
+      port: 50051
+  # Allow HTTPS outbound for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443

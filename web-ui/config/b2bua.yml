@@ -1,0 +1,59 @@
+# Voice Ferry B2BUA - Default Configuration
+# Minimal configuration for getting started
+
+# SIP Configuration
+sip:
+  listen_address: "0.0.0.0"
+  listen_port: 5060
+  transport: "udp"
+  user_agent: "Voice-Ferry-C4/1.0"
+
+# B2BUA Core Settings
+b2bua:
+  max_concurrent_calls: 100
+  call_timeout: 300
+  ring_timeout: 180
+
+# Redis Configuration
+redis:
+  host: "redis"
+  port: 6379
+  database: 0
+
+# etcd Configuration
+etcd:
+  endpoints:
+    - "http://etcd:2379"
+
+# Routing Configuration
+routing:
+  default_route:
+    enabled: true
+    target: "sip:gateway@192.168.1.100:5060"
+
+# Security
+security:
+  rate_limiting:
+    enabled: true
+    calls_per_second: 10
+
+# Monitoring
+monitoring:
+  metrics:
+    enabled: true
+    interval: 30
+
+# Logging
+logging:
+  level: "info"
+  outputs:
+    - type: "console"
+      format: "text"
+
+# gRPC API
+grpc:
+  server:
+    address: "0.0.0.0"
+    port: 50051
+  auth:
+    enabled: false

@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # Voice Ferry Web UI
+  voice-ferry-ui:
+    build: .
+    container_name: voice-ferry-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-voice-ferry-secret-key-change-in-production}
+      - SESSION_SECRET=${SESSION_SECRET:-voice-ferry-session-secret-change-in-production}
+      - REDIS_URL=redis://redis:6379
+      - ETCD_ENDPOINTS=http://etcd:2379
+      - GRPC_ENDPOINT=voice-ferry-b2bua:50051
+      - LOG_LEVEL=info
+      - RATE_LIMIT_MAX=100
+      - RATE_LIMIT_WINDOW=15
+      - METRICS_ENABLED=true
+      - WS_HEARTBEAT_INTERVAL=30000
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      voice-ferry-b2bua:
+        condition: service_started
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: voice-ferry-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # etcd for distributed configuration
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: voice-ferry-etcd
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    environment:
+      - ETCD_NAME=etcd0
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=voice-ferry-cluster
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_LOG_LEVEL=info
+      - ETCD_LOGGER=zap
+      - ETCD_LOG_OUTPUTS=stderr
+    volumes:
+      - etcd-data:/etcd-data
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints=http://localhost:2379"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Voice Ferry B2BUA (placeholder - replace with actual service)
+  voice-ferry-b2bua:
+    image: voice-ferry:latest
+    container_name: voice-ferry-b2bua
+    ports:
+      - "5060:5060/udp"  # SIP port
+      - "50051:50051"    # gRPC port
+    volumes:
+      - ./config/b2bua.yml:/app/config.yml
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - etcd
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: voice-ferry-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - voice-ferry-ui
+    networks:
+      - voice-ferry-network
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+volumes:
+  redis-data:
+  etcd-data:
+
+networks:
+  voice-ferry-network:
+    driver: bridge

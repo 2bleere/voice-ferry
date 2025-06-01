@@ -1,0 +1,17 @@
+sip:
+  host: 0.0.0.0
+  port: 5060
+  transport: TCP
+  timeouts:
+    transaction: 32s
+    dialog: 12h
+    registration: 3600s
+redis:
+  enabled: true
+  host: localhost
+  port: 6379
+  password: ""
+  database: 0
+  enable_session_limits: true
+  max_sessions_per_user: 5
+  session_limit_action: reject

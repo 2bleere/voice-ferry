@@ -1,0 +1,122 @@
+# Docker Compose Override for Development
+# This file extends docker-compose.yml for development environment
+# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  # Development Web UI with hot reloading
+  voice-ferry-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development  # Multi-stage build target
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - JWT_SECRET=dev-jwt-secret-not-for-production
+      - REDIS_URL=redis://redis:6379
+      - ETCD_ENDPOINTS=http://etcd:2379
+      - GRPC_ENDPOINT=mock-b2bua:50051  # Point to mock service for development
+      - RATE_LIMIT_MAX=1000  # Higher limits for development
+      - RATE_LIMIT_WINDOW=15
+    volumes:
+      # Mount source code for development
+      - .:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - "3001:3001"
+      - "9229:9229"  # Node.js debugger port
+    command: ["npm", "run", "dev"]
+    depends_on:
+      - redis
+      - etcd
+    networks:
+      - voice-ferry-network
+
+  # Development Redis with exposed port
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --loglevel debug
+    
+  # Development etcd with exposed ports
+  etcd:
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    environment:
+      - ETCD_LOG_LEVEL=debug
+
+  # Development tools container (optional)
+  dev-tools:
+    image: alpine:latest
+    container_name: voice-ferry-dev-tools
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: tail -f /dev/null  # Keep container running
+    networks:
+      - voice-ferry-network
+    profiles:
+      - tools
+
+  # Redis Commander for Redis management (optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: voice-ferry-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - voice-ferry-network
+    profiles:
+      - tools
+
+  # etcd browser for etcd management (optional)
+  etcd-browser:
+    image: buddho/etcd-browser:latest
+    container_name: voice-ferry-etcd-browser
+    environment:
+      - ETCD_ENDPOINT=http://etcd:2379
+    ports:
+      - "8082:8080"
+    depends_on:
+      - etcd
+    networks:
+      - voice-ferry-network
+    profiles:
+      - tools
+      
+# Mock B2BUA service for development (optional)
+  mock-b2bua:
+    image: node:18-alpine
+    container_name: voice-ferry-mock-b2bua
+    working_dir: /app
+    volumes:
+      - ./mock-services:/app
+    command: sh -c "npm install && node sip-service.js"
+    ports:
+      - "5060:5060/udp"  # SIP port
+      - "50051:50051"    # gRPC port
+    networks:
+      - voice-ferry-network
+    profiles:
+      - mock
+    environment:
+      - NODE_ENV=development
+    restart: unless-stopped
+      
+volumes:
+  redis-data:
+  etcd-data:
+
+networks:
+  voice-ferry-network:
+    driver: bridge

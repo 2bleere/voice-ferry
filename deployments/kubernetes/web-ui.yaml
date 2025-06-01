@@ -1,0 +1,299 @@
+# Voice Ferry Web UI - Kubernetes Deployment
+# Production-ready web interface with etcd monitoring support
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-ui-config
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+data:
+  production.env: |
+    NODE_ENV=production
+    PORT=3000
+    
+    # Security
+    JWT_SECRET=${JWT_SECRET}
+    SESSION_SECRET=${SESSION_SECRET}
+    
+    # Redis Configuration
+    REDIS_URL=redis://redis:6379
+    REDIS_PASSWORD=
+    
+    # etcd Configuration - Critical for status monitoring
+    ETCD_ENDPOINTS=http://etcd:2379
+    ETCD_USERNAME=
+    ETCD_PASSWORD=
+    
+    # gRPC Configuration
+    GRPC_ENDPOINT=voice-ferry-b2bua:50051
+    GRPC_TLS_ENABLED=false
+    
+    # Logging
+    LOG_LEVEL=info
+    LOG_FILE=/app/logs/voice-ferry-ui.log
+    
+    # Rate Limiting
+    RATE_LIMIT_MAX=100
+    RATE_LIMIT_WINDOW=15
+    
+    # File Storage
+    CONFIG_DIR=/app/config
+    DATA_DIR=/app/data
+    BACKUP_DIR=/app/backups
+    
+    # Monitoring - Enable for etcd status checking
+    METRICS_ENABLED=true
+    METRICS_INTERVAL=30000
+    
+    # WebSocket - For real-time status updates
+    WS_HEARTBEAT_INTERVAL=30000
+    WS_MAX_CONNECTIONS=100
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-ui-secrets
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+type: Opaque
+stringData:
+  jwt-secret: "your-production-jwt-secret-change-this"
+  session-secret: "your-production-session-secret-change-this"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-ferry-web-ui
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+    version: "1.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: voice-ferry-web-ui
+  template:
+    metadata:
+      labels:
+        app: voice-ferry-web-ui
+        component: web-ui
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: web-ui
+        image: voice-ferry-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-ui-secrets
+              key: jwt-secret
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-ui-secrets
+              key: session-secret
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: ETCD_ENDPOINTS
+          value: "http://etcd:2379"
+        - name: GRPC_ENDPOINT
+          value: "voice-ferry-b2bua:50051"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: METRICS_ENABLED
+          value: "true"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 12
+      volumes:
+      - name: config
+        configMap:
+          name: web-ui-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: web-ui-data
+      - name: logs
+        persistentVolumeClaim:
+          claimName: web-ui-logs
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - voice-ferry-web-ui
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-web-ui
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: voice-ferry-web-ui
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-web-ui-nodeport
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+spec:
+  type: NodePort
+  ports:
+  - port: 3000
+    targetPort: http
+    protocol: TCP
+    name: http
+    nodePort: 30001
+  selector:
+    app: voice-ferry-web-ui
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: web-ui-data
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: web-ui-logs
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: standard
+
+---
+# Horizontal Pod Autoscaler for Web UI
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: voice-ferry-web-ui-hpa
+  namespace: voice-ferry
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voice-ferry-web-ui
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

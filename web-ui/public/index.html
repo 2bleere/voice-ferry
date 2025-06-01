@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Ferry - Web Management Interface</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal active">
+        <div class="modal-content">
+            <div class="login-container">
+                <div class="login-header">
+                    <h2><i class="fas fa-phone-alt"></i> Voice Ferry</h2>
+                    <p>Class 4 Switch Management Interface</p>
+                </div>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+                <div id="loginError" class="error-message" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-phone-alt"></i> Voice Ferry</h1>
+                <div class="status-indicator" id="systemStatus">
+                    <span class="status-dot status-healthy"></span>
+                    <span class="status-text">System Healthy</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-menu">
+                    <span id="currentUser">Admin User</span>
+                    <button class="btn btn-secondary" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="nav">
+                <ul class="nav-list">
+                    <li class="nav-item">
+                        <a href="#dashboard" class="nav-link active" data-page="dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#configuration" class="nav-link" data-page="configuration">
+                            <i class="fas fa-cog"></i>
+                            <span>Configuration</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#sip-users" class="nav-link" data-page="sip-users">
+                            <i class="fas fa-user-friends"></i>
+                            <span>SIP Users</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#sessions" class="nav-link" data-page="sessions">
+                            <i class="fas fa-users"></i>
+                            <span>Sessions</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#calls" class="nav-link" data-page="calls">
+                            <i class="fas fa-phone"></i>
+                            <span>Active Calls</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#metrics" class="nav-link" data-page="metrics">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Metrics</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#routing" class="nav-link" data-page="routing">
+                            <i class="fas fa-route"></i>
+                            <span>Routing</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#logs" class="nav-link" data-page="logs">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Logs</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#alerts" class="nav-link" data-page="alerts">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>Alerts</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard" class="page active">
+                <div class="page-header">
+                    <h2>System Dashboard</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refreshDashboard">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- System Status Cards -->
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-server"></i> System Status</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="status-grid">
+                                <div class="status-item">
+                                    <span class="status-label">B2BUA Service</span>
+                                    <span class="status-value" id="b2buaStatus">
+                                        <span class="status-dot status-healthy"></span> Healthy
+                                    </span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Redis</span>
+                                    <span class="status-value" id="redisStatus">
+                                        <span class="status-dot status-healthy"></span> Connected
+                                    </span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">etcd</span>
+                                    <span class="status-value" id="etcdStatus">
+                                        <span class="status-dot status-healthy"></span> Connected
+                                    </span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">RTPEngine</span>
+                                    <span class="status-value" id="rtpengineStatus">
+                                        <span class="status-dot status-healthy"></span> Active
+                                    </span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Uptime</span>
+                                    <span class="status-value" id="systemUptime">0d 0h 0m</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-phone"></i> Call Statistics</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="activeCalls">0</div>
+                                    <div class="stat-label">Active Calls</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="totalCalls">0</div>
+                                    <div class="stat-label">Total Calls</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="callSuccessRate">0%</div>
+                                    <div class="stat-label">Success Rate</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="avgCallDuration">0s</div>
+                                    <div class="stat-label">Avg Duration</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-users"></i> Session Overview</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="activeSessions">0</div>
+                                    <div class="stat-label">Active Sessions</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="registeredUsers">0</div>
+                                    <div class="stat-label">Registered Users</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="sessionLimitExceeded">0</div>
+                                    <div class="stat-label">Limit Exceeded</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="sessionUtilization">0%</div>
+                                    <div class="stat-label">Utilization</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-line"></i> Performance</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="responseTime">0ms</div>
+                                    <div class="stat-label">Response Time</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="throughput">0/s</div>
+                                    <div class="stat-label">Throughput</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="errorRate">0%</div>
+                                    <div class="stat-label">Error Rate</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="availability">100%</div>
+                                    <div class="stat-label">Availability</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>Call Volume (24h)</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="callVolumeChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>System Resources</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="systemResourcesChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Events -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-clock"></i> Recent Events</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="events-list" id="recentEvents">
+                            <!-- Events will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Page -->
+            <div id="configuration" class="page">
+                <div class="page-header">
+                    <h2>System Configuration</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="backupConfig">
+                            <i class="fas fa-download"></i> Backup
+                        </button>
+                        <button class="btn btn-primary" id="saveConfig">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <div class="config-tabs">
+                    <button class="tab-button active" data-tab="sip">SIP Settings</button>
+                    <button class="tab-button" data-tab="redis">Redis & Sessions</button>
+                    <button class="tab-button" data-tab="rtpengine">RTPEngine</button>
+                    <button class="tab-button" data-tab="logging">Logging</button>
+                    <button class="tab-button" data-tab="metrics">Metrics</button>
+                </div>
+
+                <div class="config-content">
+                    <!-- SIP Configuration -->
+                    <div id="sipConfig" class="config-section active">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>SIP Configuration</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="sipHost">Host</label>
+                                        <input type="text" id="sipHost" name="sipHost" value="0.0.0.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sipPort">Port</label>
+                                        <input type="number" id="sipPort" name="sipPort" value="5060" min="1" max="65535">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sipTransport">Transport</label>
+                                        <select id="sipTransport" name="sipTransport">
+                                            <option value="UDP">UDP</option>
+                                            <option value="TCP">TCP</option>
+                                            <option value="TLS">TLS</option>
+                                            <option value="WS">WebSocket</option>
+                                            <option value="WSS">WebSocket Secure</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <h4>Timeouts</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="transactionTimeout">Transaction Timeout</label>
+                                        <input type="text" id="transactionTimeout" name="transactionTimeout" value="32s">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dialogTimeout">Dialog Timeout</label>
+                                        <input type="text" id="dialogTimeout" name="dialogTimeout" value="12h">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="registrationTimeout">Registration Timeout</label>
+                                        <input type="text" id="registrationTimeout" name="registrationTimeout" value="3600s">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Redis Configuration -->
+                    <div id="redisConfig" class="config-section">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Redis Configuration</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="redisEnabled" name="redisEnabled" checked>
+                                        Enable Redis
+                                    </label>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="redisHost">Host</label>
+                                        <input type="text" id="redisHost" name="redisHost" value="localhost">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="redisPort">Port</label>
+                                        <input type="number" id="redisPort" name="redisPort" value="6379" min="1" max="65535">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="redisPassword">Password</label>
+                                        <input type="password" id="redisPassword" name="redisPassword">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="redisDatabase">Database</label>
+                                        <input type="number" id="redisDatabase" name="redisDatabase" value="0" min="0" max="15">
+                                    </div>
+                                </div>
+                                <h4>Session Limits</h4>
+                                <div class="form-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="sessionLimitsEnabled" name="sessionLimitsEnabled" checked>
+                                        Enable Session Limits
+                                    </label>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="maxSessionsPerUser">Max Sessions Per User</label>
+                                        <input type="number" id="maxSessionsPerUser" name="maxSessionsPerUser" value="5" min="1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sessionLimitAction">Limit Action</label>
+                                        <select id="sessionLimitAction" name="sessionLimitAction">
+                                            <option value="reject">Reject New Sessions</option>
+                                            <option value="terminate_oldest">Terminate Oldest</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other config sections would go here -->
+                </div>
+            </div>
+
+            <!-- SIP Users Page -->
+            <div id="sip-users" class="page">
+                <div class="page-header">
+                    <h2>SIP User Management</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="addSipUser">
+                            <i class="fas fa-plus"></i> Add User
+                        </button>
+                        <button class="btn btn-secondary" id="refreshSipUsers">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SIP Users Statistics -->
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-users"></i> User Statistics</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="totalSipUsers">0</div>
+                                    <div class="stat-label">Total Users</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="enabledSipUsers">0</div>
+                                    <div class="stat-label">Enabled</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="disabledSipUsers">0</div>
+                                    <div class="stat-label">Disabled</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="sipUserRealms">0</div>
+                                    <div class="stat-label">Realms</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SIP Users Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>SIP Users</h3>
+                        <div class="card-actions">
+                            <input type="text" placeholder="Search users..." id="sipUserSearch" class="search-input">
+                            <select id="sipUserFilter" class="filter-select">
+                                <option value="all">All Users</option>
+                                <option value="enabled">Enabled Only</option>
+                                <option value="disabled">Disabled Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="sipUsersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Realm</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Last Updated</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- SIP Users will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sessions Page -->
+            <div id="sessions" class="page">
+                <div class="page-header">
+                    <h2>Session Management</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refreshSessions">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Active Sessions</h3>
+                        <div class="card-actions">
+                            <input type="text" placeholder="Search users..." id="sessionSearch" class="search-input">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="sessionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Active Sessions</th>
+                                        <th>Session Limit</th>
+                                        <th>Last Login</th>
+                                        <th>IP Address</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Sessions will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Calls Page -->
+            <div id="calls" class="page">
+                <div class="page-header">
+                    <h2>Active Calls</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refreshCalls">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="callsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Call ID</th>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Status</th>
+                                        <th>Duration</th>
+                                        <th>Start Time</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Calls will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Routing Page -->
+            <div id="routing" class="page">
+                <div class="page-header">
+                    <h2>Routing Management</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="addRoutingRule">
+                            <i class="fas fa-plus"></i> Add Rule
+                        </button>
+                        <button class="btn btn-secondary" id="testRouting">
+                            <i class="fas fa-vial"></i> Test Routing
+                        </button>
+                        <button class="btn btn-secondary" id="refreshRouting">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Routing Statistics -->
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-route"></i> Routing Statistics</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="totalRoutingRules">0</div>
+                                    <div class="stat-label">Total Rules</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="activeRoutingRules">0</div>
+                                    <div class="stat-label">Active Rules</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="routingPriorities">0</div>
+                                    <div class="stat-label">Priority Levels</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="routingProviders">0</div>
+                                    <div class="stat-label">Providers</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Routing Rules Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Routing Rules</h3>
+                        <div class="card-actions">
+                            <input type="text" placeholder="Search rules..." id="routingRuleSearch" class="search-input">
+                            <select id="routingRuleFilter" class="filter-select">
+                                <option value="all">All Rules</option>
+                                <option value="active">Active Only</option>
+                                <option value="inactive">Inactive Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="routingRulesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Priority</th>
+                                        <th>Name</th>
+                                        <th>Pattern</th>
+                                        <th>Destination</th>
+                                        <th>Provider</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Routing rules will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Page -->
+            <div id="metrics" class="page">
+                <div class="page-header">
+                    <h2>System Metrics</h2>
+                    <div class="page-actions">
+                        <select id="metricsTimeRange" class="filter-select">
+                            <option value="5m">Last 5 minutes</option>
+                            <option value="15m">Last 15 minutes</option>
+                            <option value="1h" selected>Last hour</option>
+                            <option value="6h">Last 6 hours</option>
+                            <option value="24h">Last 24 hours</option>
+                        </select>
+                        <button class="btn btn-secondary" id="refreshMetrics">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Metrics Tabs -->
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="system-metrics">System</button>
+                    <button class="tab-button" data-tab="sip-metrics">SIP</button>
+                    <button class="tab-button" data-tab="performance-metrics">Performance</button>
+                    <button class="tab-button" data-tab="redis-metrics">Redis</button>
+                </div>
+
+                <!-- System Metrics Tab -->
+                <div id="system-metrics" class="tab-content active">
+                    <div class="cards-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-microchip"></i> CPU Usage</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-display">
+                                    <div class="metric-value" id="cpuUsage">0%</div>
+                                    <div class="metric-chart" id="cpuChart"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-memory"></i> Memory Usage</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-display">
+                                    <div class="metric-value" id="memoryUsage">0%</div>
+                                    <div class="metric-chart" id="memoryChart"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-network-wired"></i> Network I/O</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="networkRx">0 MB/s</div>
+                                        <div class="stat-label">Received</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="networkTx">0 MB/s</div>
+                                        <div class="stat-label">Transmitted</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-hdd"></i> Disk Usage</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-display">
+                                    <div class="metric-value" id="diskUsage">0%</div>
+                                    <div class="metric-info" id="diskInfo">0 GB used of 0 GB</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SIP Metrics Tab -->
+                <div id="sip-metrics" class="tab-content">
+                    <div class="cards-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-phone"></i> Call Statistics</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="totalCalls">0</div>
+                                        <div class="stat-label">Total Calls</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="activeCalls">0</div>
+                                        <div class="stat-label">Active Calls</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="successfulCalls">0</div>
+                                        <div class="stat-label">Successful</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="failedCalls">0</div>
+                                        <div class="stat-label">Failed</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-chart-line"></i> Call Rate</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-chart" id="callRateChart"></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-user-friends"></i> Registrations</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="totalRegistrations">0</div>
+                                        <div class="stat-label">Total</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="activeRegistrations">0</div>
+                                        <div class="stat-label">Active</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics Tab -->
+                <div id="performance-metrics" class="tab-content">
+                    <div class="cards-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-clock"></i> Response Times</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="avgResponseTime">0ms</div>
+                                        <div class="stat-label">Average</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="p95ResponseTime">0ms</div>
+                                        <div class="stat-label">95th Percentile</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="p99ResponseTime">0ms</div>
+                                        <div class="stat-label">99th Percentile</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-tachometer-alt"></i> Throughput</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="metric-display">
+                                    <div class="metric-value" id="requestsPerSecond">0 req/s</div>
+                                    <div class="metric-chart" id="throughputChart"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-exclamation-triangle"></i> Error Rates</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="errorRate">0%</div>
+                                        <div class="stat-label">Error Rate</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="timeoutRate">0%</div>
+                                        <div class="stat-label">Timeout Rate</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Redis Metrics Tab -->
+                <div id="redis-metrics" class="tab-content">
+                    <div class="cards-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fas fa-database"></i> Redis Status</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="redisConnections">0</div>
+                                        <div class="stat-label">Connections</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="redisMemoryUsage">0 MB</div>
+                                        <div class="stat-label">Memory Used</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="redisOperations">0/s</div>
+                                        <div class="stat-label">Operations/sec</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="redisHitRate">0%</div>
+                                        <div class="stat-label">Hit Rate</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Page -->
+            <div id="logs" class="page">
+                <div class="page-header">
+                    <h2>System Logs</h2>
+                    <div class="page-actions">
+                        <select id="logLevel" class="filter-select">
+                            <option value="all">All Levels</option>
+                            <option value="error">Error</option>
+                            <option value="warn">Warning</option>
+                            <option value="info" selected>Info</option>
+                            <option value="debug">Debug</option>
+                        </select>
+                        <select id="logLines" class="filter-select">
+                            <option value="100">Last 100 lines</option>
+                            <option value="500" selected>Last 500 lines</option>
+                            <option value="1000">Last 1000 lines</option>
+                        </select>
+                        <button class="btn btn-secondary" id="clearLogs">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                        <button class="btn btn-secondary" id="refreshLogs">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-primary" id="streamLogs">
+                            <i class="fas fa-play"></i> Start Stream
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-file-alt"></i> Log Output</h3>
+                        <div class="card-actions">
+                            <span id="logStatus" class="status-indicator">
+                                <span class="status-dot status-inactive"></span>
+                                <span class="status-text">Not Streaming</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="logContainer" class="log-container">
+                            <div id="logOutput" class="log-output"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts Page -->
+            <div id="alerts" class="page">
+                <div class="page-header">
+                    <h2>Alert Management</h2>
+                    <div class="page-actions">
+                        <select id="alertSeverity" class="filter-select">
+                            <option value="all">All Severities</option>
+                            <option value="critical">Critical</option>
+                            <option value="warning">Warning</option>
+                            <option value="info">Info</option>
+                        </select>
+                        <button class="btn btn-primary" id="addAlertRule">
+                            <i class="fas fa-plus"></i> Add Rule
+                        </button>
+                        <button class="btn btn-secondary" id="refreshAlerts">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Alerts -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> Active Alerts</h3>
+                        <div class="card-actions">
+                            <span id="activeAlertsCount" class="badge">0</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="activeAlertsList" class="alerts-list">
+                            <!-- Active alerts will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Rules -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-cogs"></i> Alert Rules</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="alertRulesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Condition</th>
+                                        <th>Severity</th>
+                                        <th>Threshold</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Alert rules will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SIP User Modal -->
+    <div id="sipUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="sipUserModalTitle">Add SIP User</h3>
+                <button class="modal-close" id="closeSipUserModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="sipUserForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="sipUsername">Username</label>
+                        <input type="text" id="sipUsername" name="username" required 
+                               pattern="[a-zA-Z0-9]+" 
+                               title="Username must contain only alphanumeric characters">
+                        <small class="form-help">3-30 alphanumeric characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="sipPassword">Password</label>
+                        <input type="password" id="sipPassword" name="password" required 
+                               minlength="6" maxlength="50">
+                        <small class="form-help">6-50 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="sipRealm">Realm</label>
+                        <input type="text" id="sipRealm" name="realm" required 
+                               value="sip-b2bua.local"
+                               pattern="[a-zA-Z0-9.-]+"
+                               title="Valid domain name">
+                        <small class="form-help">Domain name (e.g., sip-b2bua.local)</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="sipEnabled" name="enabled" checked>
+                            Enable User
+                        </label>
+                        <small class="form-help">Enabled users can authenticate and make calls</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelSipUser">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveSipUser">
+                        <i class="fas fa-save"></i> Save User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Routing Rule Modal -->
+    <div id="routingRuleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="routingRuleModalTitle">Add Routing Rule</h3>
+                <button class="modal-close" id="closeRoutingRuleModal">&times;</button>
+            </div>
+            <form id="routingRuleForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="ruleName">Rule Name</label>
+                        <input type="text" id="ruleName" name="ruleName" required>
+                        <small class="form-help">Descriptive name for this routing rule</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="rulePriority">Priority</label>
+                        <input type="number" id="rulePriority" name="rulePriority" min="1" max="100" value="10" required>
+                        <small class="form-help">Lower numbers have higher priority (1-100)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="rulePattern">Pattern</label>
+                        <input type="text" id="rulePattern" name="rulePattern" placeholder="^(\+1|1)?(\d{10})$" required>
+                        <small class="form-help">Regular expression to match numbers (e.g., ^(\+1|1)?(\d{10})$ for US numbers)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="ruleDestination">Destination</label>
+                        <input type="text" id="ruleDestination" name="ruleDestination" placeholder="sip:$2@provider.com" required>
+                        <small class="form-help">Destination URI template (use $1, $2 for regex groups)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="ruleProvider">Provider</label>
+                        <input type="text" id="ruleProvider" name="ruleProvider" placeholder="Provider Name" required>
+                        <small class="form-help">Name of the carrier or provider</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="ruleDescription">Description</label>
+                        <textarea id="ruleDescription" name="ruleDescription" rows="3" placeholder="Optional description of this routing rule"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="ruleEnabled" name="ruleEnabled" checked>
+                            Enable Rule
+                        </label>
+                        <small class="form-help">Enabled rules are used for routing decisions</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelRoutingRule">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveRoutingRule">
+                        <i class="fas fa-save"></i> Save Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Routing Test Modal -->
+    <div id="routingTestModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Test Routing</h3>
+                <button class="modal-close" id="closeRoutingTestModal">&times;</button>
+            </div>
+            <form id="routingTestForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="testFromUri">From URI</label>
+                        <input type="text" id="testFromUri" name="testFromUri" placeholder="sip:1234567890@example.com" required>
+                        <small class="form-help">The originating SIP URI</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="testToUri">To URI</label>
+                        <input type="text" id="testToUri" name="testToUri" placeholder="sip:0987654321@example.com" required>
+                        <small class="form-help">The destination SIP URI to route</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="testHeaders">Additional Headers (JSON)</label>
+                        <textarea id="testHeaders" name="testHeaders" rows="4" placeholder='{"X-Custom-Header": "value"}'></textarea>
+                        <small class="form-help">Optional JSON object with additional SIP headers</small>
+                    </div>
+                    <div id="routingTestResult" class="test-result" style="display: none;">
+                        <h4>Routing Result:</h4>
+                        <div id="routingTestOutput" class="test-output"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelRoutingTest">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="runRoutingTest">
+                        <i class="fas fa-vial"></i> Test Route
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alert Rule Modal -->
+    <div id="alertRuleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="alertRuleModalTitle">Add Alert Rule</h3>
+                <button class="modal-close" id="closeAlertRuleModal">&times;</button>
+            </div>
+            <form id="alertRuleForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="alertRuleName">Rule Name</label>
+                        <input type="text" id="alertRuleName" name="ruleName" required>
+                        <small class="form-help">Descriptive name for this alert rule</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMetric">Metric</label>
+                        <select id="alertMetric" name="metric" required>
+                            <option value="">Select metric...</option>
+                            <option value="cpu_usage">CPU Usage</option>
+                            <option value="memory_usage">Memory Usage</option>
+                            <option value="disk_usage">Disk Usage</option>
+                            <option value="active_calls">Active Calls</option>
+                            <option value="call_failure_rate">Call Failure Rate</option>
+                            <option value="response_time">Response Time</option>
+                        </select>
+                        <small class="form-help">The metric to monitor</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertCondition">Condition</label>
+                        <select id="alertCondition" name="condition" required>
+                            <option value="gt">Greater than</option>
+                            <option value="lt">Less than</option>
+                            <option value="eq">Equal to</option>
+                            <option value="gte">Greater than or equal</option>
+                            <option value="lte">Less than or equal</option>
+                        </select>
+                        <small class="form-help">The condition to evaluate</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertThreshold">Threshold</label>
+                        <input type="number" id="alertThreshold" name="threshold" step="0.01" required>
+                        <small class="form-help">The threshold value for the condition</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertSeverityLevel">Severity</label>
+                        <select id="alertSeverityLevel" name="severity" required>
+                            <option value="info">Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                        <small class="form-help">The severity level of the alert</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertDuration">Duration (seconds)</label>
+                        <input type="number" id="alertDuration" name="duration" min="1" value="60" required>
+                        <small class="form-help">How long the condition must persist before alerting</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertDescription">Description</label>
+                        <textarea id="alertDescription" name="description" rows="3" placeholder="Optional description of this alert rule"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="alertEnabled" name="enabled" checked>
+                            Enable Alert
+                        </label>
+                        <small class="form-help">Enabled alerts are actively monitored</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelAlertRule">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveAlertRule">
+                        <i class="fas fa-save"></i> Save Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- JavaScript -->
+    <script src="js/app.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/sessions.js"></script>
+    <script src="js/calls.js"></script>
+    <script src="js/sipUsers.js"></script>
+    <script src="js/metrics.js"></script>
+    <script src="js/logs.js"></script>
+    <script src="js/alerts.js"></script>
+    <script src="js/websocket.js"></script>
+</body>
+</html>

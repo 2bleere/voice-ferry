@@ -1,0 +1,145 @@
+# Voice Ferry Grafana Dashboard Configuration
+{
+  "dashboard": {
+    "id": null,
+    "title": "Voice Ferry SIP B2BUA Dashboard",
+    "tags": ["voice-ferry", "sip", "b2bua", "telecommunications"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Calls",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "voice_ferry_concurrent_calls_total",
+            "legendFormat": "Active Calls"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 500}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "SIP Requests Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(voice_ferry_sip_requests_total[5m])",
+            "legendFormat": "{{method}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 18, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Call Duration Distribution",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "increase(voice_ferry_call_duration_seconds_bucket[5m])",
+            "legendFormat": "{{le}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "voice_ferry_memory_usage_bytes / 1024 / 1024",
+            "legendFormat": "Memory (MB)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Session Limits Status",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "voice_ferry_session_limit_current",
+            "legendFormat": "Current Sessions"
+          },
+          {
+            "expr": "voice_ferry_session_limit_max",
+            "legendFormat": "Max Sessions"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Service Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "voice_ferry_service_health",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "Down", "color": "red"}}, "type": "value"},
+              {"options": {"1": {"text": "Up", "color": "green"}}, "type": "value"}
+            ]
+          }
+        },
+        "gridPos": {"h": 4, "w": 24, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "gRPC API Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(voice_ferry_grpc_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(voice_ferry_grpc_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28}
+      },
+      {
+        "id": 8,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(voice_ferry_errors_total[5m])",
+            "legendFormat": "{{type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}

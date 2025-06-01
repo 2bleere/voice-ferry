@@ -1,0 +1,348 @@
+# Voice Ferry Production Configuration
+# This configuration is optimized for production deployment
+# Make sure to customize the values according to your environment
+
+# Global settings
+debug: false
+log_level: "info"
+
+# SIP Server Configuration
+sip:
+  host: "0.0.0.0"
+  port: 5060
+  transport: "UDP"
+  
+  # TLS Configuration for secure SIP
+  tls:
+    enabled: true
+    port: 5061
+    cert_file: "/etc/ssl/certs/voice-ferry.crt"
+    key_file: "/etc/ssl/private/voice-ferry.key"
+    verify_client: false
+  
+  # TCP Configuration
+  tcp:
+    enabled: true
+    port: 5060
+  
+  # Timeouts
+  timeouts:
+    transaction: 32s
+    dialog: 1800s      # 30 minutes
+    registration: 3600s # 1 hour
+    invite: 180s       # 3 minutes
+  
+  # User Agent
+  user_agent: "Voice Ferry SIP B2BUA v1.0"
+  
+  # Maximum message size (in bytes)
+  max_message_size: 65536
+
+# gRPC API Configuration
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+  
+  # TLS for gRPC (recommended for production)
+  tls:
+    enabled: true
+    cert_file: "/etc/ssl/certs/voice-ferry.crt"
+    key_file: "/etc/ssl/private/voice-ferry.key"
+    client_ca_file: "/etc/ssl/certs/ca.crt"
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 1000
+  
+  # Request size limits
+  max_receive_message_size: 4194304  # 4MB
+  max_send_message_size: 4194304     # 4MB
+
+# Health and Metrics
+health:
+  host: "0.0.0.0"
+  port: 8080
+  
+  # Health check endpoints
+  endpoints:
+    liveness: "/healthz/live"
+    readiness: "/healthz/ready"
+    startup: "/healthz/startup"
+
+metrics:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8080
+  path: "/metrics"
+  
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    namespace: "voice_ferry"
+    subsystem: "b2bua"
+
+# Logging Configuration
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  
+  # File logging (optional)
+  file:
+    enabled: true
+    path: "/app/logs/voice-ferry.log"
+    max_size: 100  # MB
+    max_age: 7     # days
+    max_backups: 10
+    compress: true
+  
+  # Structured logging fields
+  fields:
+    service: "voice-ferry-b2bua"
+    version: "1.0.0"
+    environment: "production"
+
+# etcd Configuration
+etcd:
+  endpoints:
+    - "etcd:2379"
+  dial_timeout: 5s
+  request_timeout: 10s
+  
+  # TLS (if etcd uses TLS)
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+  
+  # Authentication
+  auth:
+    enabled: false
+    username: ""
+    password: ""
+
+# Redis Configuration
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+  db: 0
+  username: ""
+  password: ""
+  
+  # Connection pool settings
+  pool_size: 20
+  min_idle_conns: 5
+  max_conn_age: 300s
+  pool_timeout: 30s
+  idle_timeout: 300s
+  idle_check_frequency: 60s
+  
+  # Session limits
+  enable_session_limits: true
+  max_sessions_per_user: 10
+  session_limit_action: "reject"  # or "queue" or "redirect"
+  session_timeout: 3600s          # 1 hour
+  
+  # TLS (if Redis uses TLS)
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+
+# RTPEngine Configuration
+rtpengine:
+  enabled: true
+  instances:
+    - id: "rtpengine-1"
+      host: "rtpengine"
+      port: 22222
+      weight: 100
+      enabled: true
+  
+  # Connection settings
+  timeout: 5s
+  max_retries: 3
+  retry_delay: 1s
+  
+  # Default RTP options
+  default_options:
+    codec_mask:
+      - "PCMU"
+      - "PCMA"
+      - "G722"
+      - "G729"
+    tos: 184
+    record_call: false
+
+# Security Configuration
+security:
+  # JWT Authentication
+  jwt:
+    enabled: true
+    signing_key: "${JWT_SIGNING_KEY}"
+    signing_method: "HS256"
+    expiration: 24h
+    issuer: "voice-ferry-b2bua"
+    audience: "voice-ferry-api"
+  
+  # IP Access Control
+  ip_acl:
+    enabled: true
+    default_action: "deny"
+    rules:
+      - cidr: "10.0.0.0/8"
+        action: "allow"
+        description: "Private network"
+      - cidr: "172.16.0.0/12"
+        action: "allow"
+        description: "Private network"
+      - cidr: "192.168.0.0/16"
+        action: "allow"
+        description: "Private network"
+  
+  # SIP Authentication
+  sip_auth:
+    enabled: false
+    realm: "voice-ferry.local"
+    users:
+      # Define users in etcd or external auth service
+  
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    global:
+      requests_per_second: 1000
+      burst: 2000
+    per_ip:
+      requests_per_second: 100
+      burst: 200
+
+# Session Management
+sessions:
+  # Session storage
+  storage: "redis"  # or "memory" for development
+  
+  # Session limits
+  limits:
+    global_max_sessions: 10000
+    per_user_max_sessions: 10
+    per_ip_max_sessions: 100
+  
+  # Session timeouts
+  timeouts:
+    idle_timeout: 1800s      # 30 minutes
+    max_session_time: 7200s  # 2 hours
+  
+  # Cleanup settings
+  cleanup:
+    interval: 60s
+    expired_sessions_batch_size: 100
+
+# Call Routing
+routing:
+  # Default routing behavior
+  default_action: "reject"
+  
+  # Routing rules storage
+  storage: "etcd"  # or "memory"
+  
+  # Rule evaluation
+  max_rules: 1000
+  evaluation_timeout: 100ms
+
+# Performance Tuning
+performance:
+  # Worker pools
+  sip_workers: 10
+  grpc_workers: 5
+  
+  # Buffer sizes
+  sip_buffer_size: 65536
+  grpc_buffer_size: 32768
+  
+  # Connection limits
+  max_concurrent_calls: 5000
+  max_connections_per_ip: 100
+  
+  # Memory settings
+  gc_target_percentage: 75
+
+# WebRTC Gateway (optional)
+webrtc:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8443
+  
+  # TLS is required for WebRTC
+  tls:
+    cert_file: "/etc/ssl/certs/voice-ferry.crt"
+    key_file: "/etc/ssl/private/voice-ferry.key"
+  
+  # STUN/TURN servers
+  ice_servers:
+    - urls: "stun:stun.l.google.com:19302"
+    # - urls: "turn:turn.example.com:3478"
+    #   username: "turnuser"
+    #   credential: "turnpass"
+
+# Monitoring and Alerting
+monitoring:
+  # Health checks
+  health_checks:
+    interval: 30s
+    timeout: 10s
+    
+    # Service dependencies
+    dependencies:
+      - name: "redis"
+        type: "redis"
+        config:
+          host: "redis"
+          port: 6379
+      - name: "etcd"
+        type: "etcd"
+        config:
+          endpoints: ["etcd:2379"]
+      - name: "rtpengine"
+        type: "rtpengine"
+        config:
+          host: "rtpengine"
+          port: 22222
+  
+  # Metrics collection
+  metrics:
+    collection_interval: 15s
+    retention_period: 7d
+    
+    # Custom metrics
+    custom_metrics:
+      - name: "concurrent_calls"
+        type: "gauge"
+        description: "Number of concurrent active calls"
+      - name: "call_duration"
+        type: "histogram"
+        description: "Call duration in seconds"
+      - name: "sip_requests_total"
+        type: "counter"
+        description: "Total SIP requests processed"
+  
+  # Alerting
+  alerting:
+    enabled: true
+    rules:
+      - name: "high_cpu_usage"
+        condition: "cpu_usage > 80"
+        duration: "5m"
+        severity: "warning"
+      - name: "high_memory_usage"
+        condition: "memory_usage > 85"
+        duration: "5m"
+        severity: "warning"
+      - name: "service_down"
+        condition: "service_health == 0"
+        duration: "30s"
+        severity: "critical"

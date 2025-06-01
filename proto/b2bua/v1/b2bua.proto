@@ -1,0 +1,362 @@
+syntax = "proto3";
+
+package b2bua.v1;
+
+option go_package = "github.com/2bleere/voice-ferry/proto/gen/b2bua/v1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// B2BUA Call Service - manages SIP calls
+service B2BUACallService {
+  // Initiate a new call
+  rpc InitiateCall(InitiateCallRequest) returns (InitiateCallResponse);
+  
+  // Terminate an active call
+  rpc TerminateCall(TerminateCallRequest) returns (TerminateCallResponse);
+  
+  // Get active calls
+  rpc GetActiveCalls(GetActiveCallsRequest) returns (stream ActiveCallInfo);
+  
+  // Get call details
+  rpc GetCallDetails(GetCallDetailsRequest) returns (CallDetailsResponse);
+}
+
+// Routing Rule Service - manages custom routing rules
+service RoutingRuleService {
+  // Add a new routing rule
+  rpc AddRoutingRule(AddRoutingRuleRequest) returns (RoutingRuleResponse);
+  
+  // Get routing rule by ID
+  rpc GetRoutingRule(GetRoutingRuleRequest) returns (RoutingRuleResponse);
+  
+  // Update routing rule
+  rpc UpdateRoutingRule(UpdateRoutingRuleRequest) returns (RoutingRuleResponse);
+  
+  // Delete routing rule
+  rpc DeleteRoutingRule(DeleteRoutingRuleRequest) returns (google.protobuf.Empty);
+  
+  // List all routing rules
+  rpc ListRoutingRules(ListRoutingRulesRequest) returns (ListRoutingRulesResponse);
+}
+
+// SIP Header Service - manages SIP header manipulation
+service SIPHeaderService {
+  // Add SIP header to a call leg
+  rpc AddSipHeader(AddSipHeaderRequest) returns (CommandStatusResponse);
+  
+  // Get SIP headers from a call leg
+  rpc GetSipHeaders(GetSipHeadersRequest) returns (GetSipHeadersResponse);
+  
+  // Remove SIP header from a call leg
+  rpc RemoveSipHeader(RemoveSipHeaderRequest) returns (CommandStatusResponse);
+  
+  // Replace SIP header in a call leg
+  rpc ReplaceSipHeader(ReplaceSipHeaderRequest) returns (CommandStatusResponse);
+}
+
+// Configuration Service - manages B2BUA configuration
+service ConfigurationService {
+  // Get global configuration
+  rpc GetGlobalConfig(google.protobuf.Empty) returns (GlobalConfigResponse);
+  
+  // Update global configuration
+  rpc UpdateGlobalConfig(UpdateGlobalConfigRequest) returns (CommandStatusResponse);
+  
+  // Reload configuration from etcd
+  rpc ReloadConfig(google.protobuf.Empty) returns (CommandStatusResponse);
+}
+
+// Status Service - provides system status and metrics
+service StatusService {
+  // Get system status
+  rpc GetSystemStatus(google.protobuf.Empty) returns (SystemStatusResponse);
+  
+  // Get system metrics
+  rpc GetMetrics(google.protobuf.Empty) returns (MetricsResponse);
+  
+  // Health check
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+}
+
+// Call Management Messages
+message InitiateCallRequest {
+  string from_uri = 1;
+  string to_uri = 2;
+  string initial_sdp = 3;
+  map<string, string> custom_headers = 4;
+  string routing_rule_id = 5;
+}
+
+message InitiateCallResponse {
+  string call_id = 1;
+  string leg_id = 2;
+  string resulting_sdp = 3;
+  CallStatus status = 4;
+}
+
+message TerminateCallRequest {
+  string call_id = 1;
+  string reason = 2;
+}
+
+message TerminateCallResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetActiveCallsRequest {
+  string filter = 1; // Optional filter criteria
+}
+
+message ActiveCallInfo {
+  string call_id = 1;
+  string from_uri = 2;
+  string to_uri = 3;
+  CallStatus status = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp last_activity = 6;
+  CallLegInfo a_leg = 7;
+  CallLegInfo b_leg = 8;
+}
+
+message CallLegInfo {
+  string leg_id = 1;
+  string remote_uri = 2;
+  string local_uri = 3;
+  string remote_ip = 4;
+  int32 remote_port = 5;
+  string call_state = 6;
+}
+
+message GetCallDetailsRequest {
+  string call_id = 1;
+}
+
+message CallDetailsResponse {
+  ActiveCallInfo call_info = 1;
+  repeated SipMessage sip_messages = 2;
+  MediaInfo media_info = 3;
+}
+
+// SIP Header Management Messages
+message AddSipHeaderRequest {
+  string call_id = 1;
+  string leg_id = 2;
+  string header_name = 3;
+  string header_value = 4;
+}
+
+message GetSipHeadersRequest {
+  string call_id = 1;
+  string leg_id = 2;
+  repeated string header_names = 3; // If empty, return all headers
+}
+
+message GetSipHeadersResponse {
+  map<string, SipHeaderValues> headers = 1;
+}
+
+message RemoveSipHeaderRequest {
+  string call_id = 1;
+  string leg_id = 2;
+  string header_name = 3;
+}
+
+message ReplaceSipHeaderRequest {
+  string call_id = 1;
+  string leg_id = 2;
+  string header_name = 3;
+  string header_value = 4;
+}
+
+message SipHeaderValues {
+  repeated string values = 1;
+}
+
+// Routing Rule Messages
+message AddRoutingRuleRequest {
+  RoutingRule rule = 1;
+}
+
+message GetRoutingRuleRequest {
+  string rule_id = 1;
+}
+
+message UpdateRoutingRuleRequest {
+  RoutingRule rule = 1;
+}
+
+message DeleteRoutingRuleRequest {
+  string rule_id = 1;
+}
+
+message ListRoutingRulesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListRoutingRulesResponse {
+  repeated RoutingRule rules = 1;
+  string next_page_token = 2;
+}
+
+message RoutingRuleResponse {
+  RoutingRule rule = 1;
+}
+
+message RoutingRule {
+  string rule_id = 1;
+  int32 priority = 2;
+  string name = 3;
+  string description = 4;
+  RoutingConditions conditions = 5;
+  RoutingActions actions = 6;
+  bool enabled = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message RoutingConditions {
+  string request_uri_regex = 1;
+  string from_uri_regex = 2;
+  string to_uri_regex = 3;
+  repeated string source_ips = 4;
+  map<string, string> header_conditions = 5;
+  TimeCondition time_condition = 6;
+}
+
+message RoutingActions {
+  string next_hop_uri = 1;
+  map<string, string> add_headers = 2;
+  repeated string remove_headers = 3;
+  string rtpengine_flags = 4;
+  int32 response_code = 5; // For rejecting calls
+  string response_reason = 6;
+}
+
+message TimeCondition {
+  repeated int32 days_of_week = 1; // 0=Sunday, 1=Monday, etc.
+  string start_time = 2; // HH:MM format
+  string end_time = 3;   // HH:MM format
+}
+
+// Configuration Messages
+message GlobalConfigResponse {
+  GlobalConfig config = 1;
+}
+
+message UpdateGlobalConfigRequest {
+  GlobalConfig config = 1;
+}
+
+message GlobalConfig {
+  LoggingConfig logging = 1;
+  SipConfig sip = 2;
+  SecurityConfig security = 3;
+}
+
+message LoggingConfig {
+  string level = 1;
+  bool enable_sip_trace = 2;
+}
+
+message SipConfig {
+  int32 max_forwards = 1;
+  string user_agent = 2;
+  bool enable_100rel = 3;
+}
+
+message SecurityConfig {
+  bool enable_digest_auth = 1;
+  repeated string trusted_proxies = 2;
+}
+
+// Status and Metrics Messages
+message SystemStatusResponse {
+  string version = 1;
+  google.protobuf.Timestamp uptime = 2;
+  int32 active_calls = 3;
+  int32 total_calls = 4;
+  ComponentStatus sip_status = 5;
+  ComponentStatus etcd_status = 6;
+  ComponentStatus redis_status = 7;
+  repeated RTPEngineStatus rtpengine_status = 8;
+}
+
+message ComponentStatus {
+  string name = 1;
+  bool healthy = 2;
+  string message = 3;
+  google.protobuf.Timestamp last_check = 4;
+}
+
+message RTPEngineStatus {
+  string instance_id = 1;
+  bool healthy = 2;
+  int32 active_sessions = 3;
+  string version = 4;
+}
+
+message MetricsResponse {
+  map<string, double> metrics = 1;
+}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string message = 2;
+}
+
+// Common Messages
+message CommandStatusResponse {
+  bool success = 1;
+  string message = 2;
+  string error_code = 3;
+}
+
+message SipMessage {
+  string raw_message = 1;
+  string method = 2;
+  string uri = 3;
+  int32 status_code = 4;
+  string reason_phrase = 5;
+  map<string, SipHeaderValues> headers = 6;
+  string body = 7;
+  google.protobuf.Timestamp timestamp = 8;
+  string direction = 9; // "incoming" or "outgoing"
+}
+
+message MediaInfo {
+  string rtpengine_session_id = 1;
+  repeated MediaStream streams = 2;
+}
+
+message MediaStream {
+  string media_type = 1; // "audio", "video"
+  string local_ip = 2;
+  int32 local_port = 3;
+  string remote_ip = 4;
+  int32 remote_port = 5;
+  string codec = 6;
+  MediaStats stats = 7;
+}
+
+message MediaStats {
+  int64 packets_sent = 1;
+  int64 packets_received = 2;
+  int64 bytes_sent = 3;
+  int64 bytes_received = 4;
+  int64 packets_lost = 5;
+  double jitter = 6;
+}
+
+// Enums
+enum CallStatus {
+  CALL_STATUS_UNSPECIFIED = 0;
+  CALL_STATUS_INITIATING = 1;
+  CALL_STATUS_RINGING = 2;
+  CALL_STATUS_CONNECTED = 3;
+  CALL_STATUS_DISCONNECTING = 4;
+  CALL_STATUS_TERMINATED = 5;
+  CALL_STATUS_FAILED = 6;
+}

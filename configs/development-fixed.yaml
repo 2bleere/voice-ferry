@@ -1,0 +1,154 @@
+# Development configuration for SIP B2BUA
+# This configuration is optimized for development and testing
+
+# Global debug flag
+debug: true
+
+# SIP server configuration
+sip:
+  host: "0.0.0.0"
+  port: 5060
+  transport: "UDP"  # UDP, TCP, TLS, WS, WSS
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+  timeouts:
+    transaction: 32s
+    dialog: 1800s
+    registration: 3600s
+  
+  # Authentication configuration (enabled for development testing)
+  auth:
+    enabled: true
+    realm: "sip-b2bua.local"
+
+# gRPC API configuration
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+
+# WebRTC gateway configuration
+webrtc:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8081
+  ws_path: "/ws"
+  stun_servers:
+    - "stun:stun.l.google.com:19302"
+    - "stun:stun1.l.google.com:19302"
+  turn_servers: []
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+
+# Health check configuration
+health:
+  host: "0.0.0.0"
+  port: 8080
+
+# Metrics configuration
+metrics:
+  host: "0.0.0.0"
+  port: 9090
+
+# Logging configuration
+logging:
+  level: "debug"
+  format: "text"
+  file: ""
+  max_size: 100
+  max_backups: 3
+  max_age: 28
+  compress: true
+  include_source: true
+  version: "dev"
+  instance_id: "dev-instance"
+
+# etcd configuration
+etcd:
+  enabled: true
+  endpoints:
+    - "http://etcd:2379"
+  dial_timeout: 5s
+  username: ""
+  password: ""
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+    ca_file: ""
+
+# Redis configuration
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+  password: ""
+  database: 0
+  pool_size: 10
+  min_idle_conns: 5
+  max_idle_time: 300
+  conn_max_lifetime: 3600
+  timeout: 5
+  # Session limit settings
+  enable_session_limits: true
+  max_sessions_per_user: 3          # Lower limit for testing
+  session_limit_action: "reject"    # Action when limit reached: "reject" or "terminate_oldest"
+  write_timeout: 3s
+  pool_timeout: 4s
+  idle_timeout: 300s
+  idle_check_frequency: 60s
+
+# RTPEngine configuration
+rtpengine:
+  instances:
+    - id: "rtpengine-1"
+      host: "rtpengine"
+      port: 22222
+      weight: 100
+      enabled: true
+  timeout: 5s
+
+# Security configuration
+security:
+  sip:
+    digest_auth:
+      enabled: true
+      realm: "sip-b2bua.local"
+    ip_acls:
+      - name: "localhost"
+        action: "allow"
+        networks:
+          - "127.0.0.0/8"
+          - "::1/128"
+      - name: "private_networks"
+        action: "allow"
+        networks:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+  jwt:
+    signing_key: "dev-secret-key"
+    expiration: 24h
+    issuer: "sip-b2bua-dev"
+
+# Authentication configuration
+auth:
+  enabled: false
+  ip_whitelist: []
+  ip_blacklist: []
+  jwt:
+    public_key_path: ""
+    private_key_path: ""
+    signing_key: "dev-secret-key"
+    expiration: 24h
+    issuer: "sip-b2bua-dev"

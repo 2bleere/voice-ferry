@@ -1,0 +1,221 @@
+# Redis Cluster for Voice Ferry - Production Ready
+# This creates a Redis cluster with 6 nodes (3 masters + 3 replicas)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cluster-config
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+data:
+  redis.conf: |
+    cluster-enabled yes
+    cluster-require-full-coverage no
+    cluster-node-timeout 15000
+    cluster-config-file /data/nodes.conf
+    cluster-migration-barrier 1
+    appendonly yes
+    protected-mode no
+    bind 0.0.0.0
+    port 6379
+    tcp-keepalive 60
+    tcp-backlog 511
+    timeout 0
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+    lazyfree-lazy-eviction yes
+    lazyfree-lazy-expire yes
+    lazyfree-lazy-server-del yes
+    replica-lazy-flush yes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    service: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: client
+  - port: 16379
+    targetPort: 16379
+    name: gossip
+  clusterIP: None
+  selector:
+    app: redis-cluster
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+spec:
+  serviceName: redis
+  replicas: 6
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command:
+        - redis-server
+        - /conf/redis.conf
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        ports:
+        - containerPort: 6379
+          name: client
+        - containerPort: 16379
+          name: gossip
+        volumeMounts:
+        - name: conf
+          mountPath: /conf
+          readOnly: false
+        - name: data
+          mountPath: /data # Added this volume mount
+          readOnly: false
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: conf
+        configMap:
+          name: redis-cluster-config
+          defaultMode: 0755
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: redis-cluster
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-cluster-init
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster-init
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: redis-cluster-init
+        image: redis:7-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for Redis pods to be ready..."
+          sleep 30
+          
+          # Build cluster node list
+          ENDPOINTS=""
+          for i in $(seq 0 5); do
+            ENDPOINTS="$ENDPOINTS redis-cluster-$i.redis-cluster.voice-ferry.svc.cluster.local:6379"
+          done
+          
+          echo "Creating Redis cluster with endpoints: $ENDPOINTS"
+          redis-cli --cluster create $ENDPOINTS --cluster-replicas 1 --cluster-yes || true
+          
+          echo "Checking cluster status..."
+          redis-cli -h redis-cluster-0.redis-cluster.voice-ferry.svc.cluster.local cluster info
+          
+          echo "Redis cluster initialization completed"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+---
+# Service for accessing the Redis cluster from applications
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    service: redis-access
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app: redis-cluster
+---
+# ConfigMap for Redis cluster access configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cluster-access
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+data:
+  redis-nodes: |
+    redis-cluster-0.redis-cluster.voice-ferry.svc.cluster.local:6379
+    redis-cluster-1.redis-cluster.voice-ferry.svc.cluster.local:6379
+    redis-cluster-2.redis-cluster.voice-ferry.svc.cluster.local:6379
+    redis-cluster-3.redis-cluster.voice-ferry.svc.cluster.local:6379
+    redis-cluster-4.redis-cluster.voice-ferry.svc.cluster.local:6379
+    redis-cluster-5.redis-cluster.voice-ferry.svc.cluster.local:6379

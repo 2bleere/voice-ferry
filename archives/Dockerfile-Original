@@ -1,0 +1,83 @@
+# Multi-stage Dockerfile for SIP B2BUA
+
+# Build stage
+FROM golang:1.24.3-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY . .
+
+# Build the application
+ARG VERSION=dev
+ARG BUILD_TIME
+ARG COMMIT_SHA
+RUN BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
+    COMMIT_SHA=${COMMIT_SHA:-unknown} && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X main.commitSHA=${COMMIT_SHA}" \
+    -o b2bua-server \
+    ./cmd/b2bua
+
+# Final stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user
+RUN addgroup -g 1001 -S b2bua && \
+    adduser -u 1001 -S b2bua -G b2bua
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/b2bua-server .
+
+# Copy configuration files
+COPY --chown=b2bua:b2bua configs/ ./configs/
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data && \
+    chown -R b2bua:b2bua /app
+
+# Switch to non-root user
+USER b2bua
+
+# Expose ports
+EXPOSE 5060/udp 8080 9090 50051
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health/live || exit 1
+
+# Set default environment variables
+ENV LOG_LEVEL=info
+ENV CONFIG_FILE=/app/configs/production.yaml
+
+# Command to run
+ENTRYPOINT ["./b2bua-server"]
+CMD ["--config", "/app/configs/production.yaml"]
+
+# Metadata
+LABEL maintainer="SIP B2BUA Team"
+LABEL description="Cloud-native SIP Back-to-Back User Agent"
+LABEL version="${VERSION}"
+LABEL org.opencontainers.image.source="https://github.com/2bleere/voice-ferry"
+LABEL org.opencontainers.image.documentation="https://github.com/2bleere/voice-ferry/blob/main/README.md"
+LABEL org.opencontainers.image.licenses="MIT"
