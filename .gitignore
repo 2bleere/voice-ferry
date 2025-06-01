@@ -110,3 +110,4 @@ test-terminal.sh
 GIT_SETUP_GUIDE.md
 CI_CD_SETUP_GUIDE.md
 scripts/setup-git-repo.sh
+lint-results.txt

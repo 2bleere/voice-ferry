@@ -235,7 +235,9 @@ func (s *Server) handleBYE(ctx context.Context, req *sip.Request, tx sip.ServerT
 
 	// Send 200 OK
 	res := sip.NewResponseFromRequest(req, 200, "OK", nil)
-	tx.Respond(res)
+	if err := tx.Respond(res); err != nil {
+		log.Printf("Failed to respond to transaction: %v", err)
+	}
 
 	// Clean up dialog and media session
 	s.dialogs.RemoveDialog(dialog.ID)
@@ -250,7 +252,9 @@ func (s *Server) handleCANCEL(ctx context.Context, req *sip.Request, tx sip.Serv
 
 	// Send 200 OK to CANCEL
 	res := sip.NewResponseFromRequest(req, 200, "OK", nil)
-	tx.Respond(res)
+	if err := tx.Respond(res); err != nil {
+		log.Printf("Failed to respond to transaction: %v", err)
+	}
 
 	// TODO: Forward CANCEL to outgoing leg
 
@@ -313,7 +317,9 @@ func (s *Server) handleREGISTER(ctx context.Context, req *sip.Request, tx sip.Se
 		})
 	}
 
-	tx.Respond(res)
+	if err := tx.Respond(res); err != nil {
+		log.Printf("Failed to respond to transaction: %v", err)
+	}
 	return nil
 }
 
@@ -325,7 +331,9 @@ func (s *Server) handleOPTIONS(ctx context.Context, req *sip.Request, tx sip.Ser
 	// For now, just add the methods as a simple string header
 	res.AppendHeader(sip.NewHeader("Allow", "INVITE, ACK, BYE, CANCEL, REGISTER, OPTIONS"))
 
-	tx.Respond(res)
+	if err := tx.Respond(res); err != nil {
+		log.Printf("Failed to respond to transaction: %v", err)
+	}
 	return nil
 }
 

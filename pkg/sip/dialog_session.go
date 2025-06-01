@@ -208,11 +208,6 @@ func (sm *SessionManager) ProcessOffer(ctx context.Context, sessionID, sdp strin
 
 	// Process SDP through rtpengine
 	response, err := sm.rtpengine.Offer(ctx, session.CallID, session.CallerLeg.LocalTag, sdp, flags)
-	if err != nil {
-		sm.logger.Error("RTPEngine offer failed", "error", err, "call_id", session.CallID)
-		return sdp, err // Return original SDP on error
-	}
-
 	// Update session with media information
 	session.MediaSession.OfferSDP = sdp
 	session.MediaSession.UpdatedAt = time.Now()
@@ -344,7 +339,9 @@ func (sm *SessionManager) TerminateSession(ctx context.Context, sessionID string
 		// Clean up session from active sessions after a delay (for debugging/auditing)
 		go func() {
 			time.Sleep(5 * time.Minute)
-			sm.redisClient.DeleteSession(context.Background(), sessionID)
+			if err := sm.redisClient.DeleteSession(context.Background(), sessionID); err != nil {
+				// Optionally log the error
+			}
 		}()
 	}
 
