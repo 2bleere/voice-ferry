@@ -172,7 +172,18 @@ func (hm *HealthManager) performSingleHealthCheck(ctx context.Context, name stri
 	defer cancel()
 
 	start := time.Now()
-	err := checker.Check(checkCtx)
+	var err error
+	
+	// Recover from panics and convert them to errors
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("health check panicked: %v", r)
+			}
+		}()
+		err = checker.Check(checkCtx)
+	}()
+	
 	duration := time.Since(start)
 
 	hm.mu.Lock()
@@ -255,7 +266,7 @@ func (hm *HealthManager) GetStatus() *SystemHealth {
 // calculateOverallStatus calculates the overall system health status
 func (hm *HealthManager) calculateOverallStatus(components map[string]*ComponentHealth) HealthStatus {
 	if len(components) == 0 {
-		return HealthStatusUnknown
+		return HealthStatusHealthy  // No components means healthy by default
 	}
 
 	healthyCount := 0

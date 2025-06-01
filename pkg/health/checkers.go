@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/2bleere/voice-ferry/pkg/etcd"
-	"github.com/2bleere/voice-ferry/pkg/redis"
-	"github.com/2bleere/voice-ferry/pkg/rtpengine"
 )
+
+// RedisClient interface for health checking
+type RedisClient interface {
+	HealthCheck(ctx context.Context) error
+}
 
 // RedisHealthChecker checks Redis connectivity
 type RedisHealthChecker struct {
-	client *redis.Client
+	client RedisClient
 }
 
 // NewRedisHealthChecker creates a new Redis health checker
-func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
+func NewRedisHealthChecker(client RedisClient) *RedisHealthChecker {
 	return &RedisHealthChecker{client: client}
 }
 
@@ -38,13 +39,18 @@ func (r *RedisHealthChecker) Timeout() time.Duration {
 	return 5 * time.Second
 }
 
+// EtcdClient interface for health checking
+type EtcdClient interface {
+	HealthCheck(ctx context.Context) error
+}
+
 // EtcdHealthChecker checks etcd connectivity
 type EtcdHealthChecker struct {
-	client *etcd.Client
+	client EtcdClient
 }
 
 // NewEtcdHealthChecker creates a new etcd health checker
-func NewEtcdHealthChecker(client *etcd.Client) *EtcdHealthChecker {
+func NewEtcdHealthChecker(client EtcdClient) *EtcdHealthChecker {
 	return &EtcdHealthChecker{client: client}
 }
 
@@ -66,13 +72,25 @@ func (e *EtcdHealthChecker) Timeout() time.Duration {
 	return 5 * time.Second
 }
 
+// RTPEngineClient interface for health checking
+type RTPEngineClient interface {
+	GetInstances() []RTPEngineInstance
+	IsInstanceHealthy(ctx context.Context, instanceID string) bool
+}
+
+// RTPEngineInstance represents an RTP engine instance
+type RTPEngineInstance struct {
+	ID      string
+	Enabled bool
+}
+
 // RTPEngineHealthChecker checks RTPEngine connectivity
 type RTPEngineHealthChecker struct {
-	client *rtpengine.Client
+	client RTPEngineClient
 }
 
 // NewRTPEngineHealthChecker creates a new RTPEngine health checker
-func NewRTPEngineHealthChecker(client *rtpengine.Client) *RTPEngineHealthChecker {
+func NewRTPEngineHealthChecker(client RTPEngineClient) *RTPEngineHealthChecker {
 	return &RTPEngineHealthChecker{client: client}
 }
 
@@ -224,10 +242,18 @@ func NewCustomHealthChecker(name string, checkFunc func(ctx context.Context) err
 }
 
 // Check performs the custom health check
-func (c *CustomHealthChecker) Check(ctx context.Context) error {
+func (c *CustomHealthChecker) Check(ctx context.Context) (err error) {
 	if c.checkFunc == nil {
 		return fmt.Errorf("no check function defined")
 	}
+	
+	// Recover from panics and convert them to errors
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("health check panicked: %v", r)
+		}
+	}()
+	
 	return c.checkFunc(ctx)
 }
 
