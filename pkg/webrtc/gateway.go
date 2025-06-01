@@ -1,4 +1,4 @@
-package webrtc
+package gateway
 
 import (
 	"context"

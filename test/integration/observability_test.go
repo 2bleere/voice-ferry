@@ -89,8 +89,8 @@ func (suite *ObservabilityTestSuite) SetupSuite() {
 	// Create server
 	var err error
 	suite.server, err = server.New(suite.config)
-	require.NoError(suite.T, err)
-	require.NotNil(suite.T, suite.server)
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), suite.server)
 
 	// Create context for server lifecycle
 	suite.ctx, suite.cancel = context.WithCancel(context.Background())
@@ -112,17 +112,17 @@ func (suite *ObservabilityTestSuite) TestServerStartup() {
 	// Start all server components
 	go func() {
 		err := suite.server.StartHealthCheck(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	go func() {
 		err := suite.server.StartMetrics(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	go func() {
 		err := suite.server.StartGRPC(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	// Give servers time to start
@@ -138,7 +138,7 @@ func (suite *ObservabilityTestSuite) TestHealthEndpoints() {
 	// Start health check server
 	go func() {
 		err := suite.server.StartHealthCheck(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -160,7 +160,7 @@ func (suite *ObservabilityTestSuite) TestMetricsCollection() {
 	// Start metrics server
 	go func() {
 		err := suite.server.StartMetrics(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -174,7 +174,7 @@ func (suite *ObservabilityTestSuite) TestMetricsCollection() {
 
 func (suite *ObservabilityTestSuite) TestLoggingSystem() {
 	// Verify logger is working
-	require.NotNil(suite.T, suite.server)
+	require.NotNil(suite.T(), suite.server)
 
 	// This test primarily ensures no panics occur during logging
 	// and that the logging system is properly initialized
@@ -184,7 +184,7 @@ func (suite *ObservabilityTestSuite) TestHealthManagerIntegration() {
 	// Start health check server
 	go func() {
 		err := suite.server.StartHealthCheck(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -197,12 +197,12 @@ func (suite *ObservabilityTestSuite) TestEndToEndObservability() {
 	// Start all components
 	go func() {
 		err := suite.server.StartHealthCheck(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	go func() {
 		err := suite.server.StartMetrics(suite.ctx)
-		assert.NoError(suite.T, err)
+		assert.NoError(suite.T(), err)
 	}()
 
 	time.Sleep(200 * time.Millisecond)
@@ -217,72 +217,72 @@ func (suite *ObservabilityTestSuite) TestEndToEndObservability() {
 func (suite *ObservabilityTestSuite) verifyHealthEndpoint() {
 	url := fmt.Sprintf("http://localhost:%d/health", suite.healthPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
-	assert.Equal(suite.T, "application/json", resp.Header.Get("Content-Type"))
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), "application/json", resp.Header.Get("Content-Type"))
 
 	var healthStatus health.SystemHealth
 	err = json.NewDecoder(resp.Body).Decode(&healthStatus)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 
-	assert.Equal(suite.T, "test-1.0.0", healthStatus.Version)
-	assert.True(suite.T, healthStatus.Timestamp.After(time.Time{}))
+	assert.Equal(suite.T(), "test-1.0.0", healthStatus.Version)
+	assert.True(suite.T(), healthStatus.Timestamp.After(time.Time{}))
 }
 
 func (suite *ObservabilityTestSuite) verifyReadinessEndpoint() {
 	url := fmt.Sprintf("http://localhost:%d/health/ready", suite.healthPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(suite.T, err)
-	assert.Equal(suite.T, "ready", string(body))
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "ready", string(body))
 }
 
 func (suite *ObservabilityTestSuite) verifyLivenessEndpoint() {
 	url := fmt.Sprintf("http://localhost:%d/health/live", suite.healthPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(suite.T, err)
-	assert.Equal(suite.T, "alive", string(body))
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "alive", string(body))
 }
 
 func (suite *ObservabilityTestSuite) verifyComponentHealthEndpoint() {
 	url := fmt.Sprintf("http://localhost:%d/health/component?name=sip_server", suite.healthPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
 	// Should return 200 for existing component or 404 for non-existing
-	assert.True(suite.T, resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound)
+	assert.True(suite.T(), resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound)
 }
 
 func (suite *ObservabilityTestSuite) verifyMetricsEndpoint() {
 	url := fmt.Sprintf("http://localhost:%d/metrics", suite.metricsPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
-	assert.Contains(suite.T, resp.Header.Get("Content-Type"), "text/plain")
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+	assert.Contains(suite.T(), resp.Header.Get("Content-Type"), "text/plain")
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 
 	bodyStr := string(body)
 	// Should contain Prometheus metrics format
-	assert.Contains(suite.T, bodyStr, "# HELP")
-	assert.Contains(suite.T, bodyStr, "# TYPE")
+	assert.Contains(suite.T(), bodyStr, "# HELP")
+	assert.Contains(suite.T(), bodyStr, "# TYPE")
 }
 
 func (suite *ObservabilityTestSuite) verifyGRPCEndpoint() {
@@ -298,19 +298,19 @@ func (suite *ObservabilityTestSuite) testMetricsCollection() {
 	// Get initial metrics
 	url := fmt.Sprintf("http://localhost:%d/metrics", suite.metricsPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 
 	metricsContent := string(body)
 
 	// Should contain system info metrics
-	assert.Contains(suite.T, metricsContent, "system_info")
+	assert.Contains(suite.T(), metricsContent, "system_info")
 
 	// Should contain component health metrics
-	assert.Contains(suite.T, metricsContent, "component_health")
+	assert.Contains(suite.T(), metricsContent, "component_health")
 }
 
 func (suite *ObservabilityTestSuite) testHealthStatusChanges() {
@@ -318,14 +318,14 @@ func (suite *ObservabilityTestSuite) testHealthStatusChanges() {
 	for i := 0; i < 3; i++ {
 		url := fmt.Sprintf("http://localhost:%d/health", suite.healthPort)
 		resp, err := http.Get(url)
-		require.NoError(suite.T, err)
+		require.NoError(suite.T(), err)
 
 		var healthStatus health.SystemHealth
 		err = json.NewDecoder(resp.Body).Decode(&healthStatus)
-		require.NoError(suite.T, err)
+		require.NoError(suite.T(), err)
 		resp.Body.Close()
 
-		assert.Equal(suite.T, "test-1.0.0", healthStatus.Version)
+		assert.Equal(suite.T(), "test-1.0.0", healthStatus.Version)
 
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -358,21 +358,21 @@ func (suite *ObservabilityTestSuite) verifyObservabilityData() {
 	// Verify health endpoint returns consistent data
 	url := fmt.Sprintf("http://localhost:%d/health", suite.healthPort)
 	resp, err := http.Get(url)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
 
 	// Verify metrics endpoint returns valid Prometheus format
 	metricsURL := fmt.Sprintf("http://localhost:%d/metrics", suite.metricsPort)
 	resp, err = http.Get(metricsURL)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 	defer resp.Body.Close()
 
-	assert.Equal(suite.T, http.StatusOK, resp.StatusCode)
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(suite.T, err)
+	require.NoError(suite.T(), err)
 
 	metricsContent := string(body)
 
@@ -394,9 +394,9 @@ func (suite *ObservabilityTestSuite) verifyObservabilityData() {
 		}
 	}
 
-	assert.True(suite.T, hasHelpLines, "Metrics should contain HELP lines")
-	assert.True(suite.T, hasTypeLines, "Metrics should contain TYPE lines")
-	assert.True(suite.T, hasMetricLines, "Metrics should contain metric lines")
+	assert.True(suite.T(), hasHelpLines, "Metrics should contain HELP lines")
+	assert.True(suite.T(), hasTypeLines, "Metrics should contain TYPE lines")
+	assert.True(suite.T(), hasMetricLines, "Metrics should contain metric lines")
 }
 
 func getAvailablePort() int {
