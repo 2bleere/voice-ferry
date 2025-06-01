@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewLogger_Development(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "debug",
 		Format:      "text",
 		Development: true,
@@ -30,7 +30,7 @@ func TestNewLogger_Development(t *testing.T) {
 }
 
 func TestNewLogger_Production(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "json",
 		Development: false,
@@ -45,7 +45,7 @@ func TestNewLogger_Production(t *testing.T) {
 }
 
 func TestNewLogger_InvalidLevel(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:  "invalid",
 		Format: "text",
 	}
@@ -57,7 +57,7 @@ func TestNewLogger_InvalidLevel(t *testing.T) {
 }
 
 func TestNewLogger_InvalidFormat(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:  "info",
 		Format: "invalid",
 	}
@@ -69,7 +69,7 @@ func TestNewLogger_InvalidFormat(t *testing.T) {
 }
 
 func TestLogger_WithContext(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "debug",
 		Format:      "text",
 		Development: true,
@@ -94,7 +94,7 @@ func TestLogger_WithContext(t *testing.T) {
 func TestLogger_SIPOperations(t *testing.T) {
 	var buf bytes.Buffer
 
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "debug",
 		Format:      "text",
 		Development: true,
@@ -121,7 +121,7 @@ func TestLogger_SIPOperations(t *testing.T) {
 func TestLogger_RoutingOperations(t *testing.T) {
 	var buf bytes.Buffer
 
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "debug",
 		Format:      "text",
 		Development: true,
@@ -147,7 +147,7 @@ func TestLogger_RoutingOperations(t *testing.T) {
 func TestLogger_MediaOperations(t *testing.T) {
 	var buf bytes.Buffer
 
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "debug",
 		Format:      "text",
 		Development: true,
@@ -171,7 +171,7 @@ func TestLogger_MediaOperations(t *testing.T) {
 }
 
 func TestLoggerManager_Creation(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "json",
 		Development: false,
@@ -184,7 +184,7 @@ func TestLoggerManager_Creation(t *testing.T) {
 }
 
 func TestLoggerManager_GetLogger(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "text",
 		Development: true,
@@ -212,7 +212,7 @@ func TestLoggerManager_GetLogger(t *testing.T) {
 }
 
 func TestLoggerManager_GetLogger_Error(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:  "invalid",
 		Format: "text",
 	}
@@ -289,7 +289,7 @@ func TestLogger_ContextKeys(t *testing.T) {
 }
 
 func TestLogger_ConcurrentAccess(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "text",
 		Development: true,
@@ -322,7 +322,7 @@ func TestLogger_ConcurrentAccess(t *testing.T) {
 }
 
 func TestLoggerManager_ConcurrentAccess(t *testing.T) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "text",
 		Development: true,
@@ -353,7 +353,7 @@ func TestLoggerManager_ConcurrentAccess(t *testing.T) {
 }
 
 func BenchmarkLogger_Info(b *testing.B) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "text",
 		Development: false,
@@ -371,7 +371,7 @@ func BenchmarkLogger_Info(b *testing.B) {
 }
 
 func BenchmarkLogger_WithContext(b *testing.B) {
-	cfg := &config.LoggingConfig{
+	cfg := config.LoggingConfig{
 		Level:       "info",
 		Format:      "text",
 		Development: false,
