@@ -22,7 +22,6 @@ func TestHealthManager_Creation(t *testing.T) {
 
 	require.NotNil(t, manager)
 	assert.Equal(t, "1.0.0", manager.version)
-	assert.Equal(t, StatusHealthy, manager.status)
 	assert.Equal(t, 0, len(manager.checkers))
 }
 
@@ -32,7 +31,7 @@ func TestHealthManager_RegisterChecker(t *testing.T) {
 
 	checker := &mockHealthChecker{
 		name:   "test-checker",
-		status: StatusHealthy,
+		status: HealthStatusHealthy,
 	}
 
 	manager.RegisterChecker(checker)
@@ -68,7 +67,7 @@ func TestHealthManager_GetStatus(t *testing.T) {
 
 	// Initially healthy
 	status := manager.GetStatus()
-	assert.Equal(t, StatusHealthy, status.Status)
+	assert.Equal(t, HealthStatusHealthy, status.Status)
 	assert.Equal(t, "1.0.0", status.Version)
 	assert.True(t, status.Timestamp.After(time.Time{}))
 }
@@ -80,14 +79,14 @@ func TestHealthManager_WithCheckers(t *testing.T) {
 	// Add healthy checker
 	healthyChecker := &mockHealthChecker{
 		name:   "healthy-service",
-		status: StatusHealthy,
+		status: HealthStatusHealthy,
 	}
 	manager.RegisterChecker(healthyChecker)
 
 	// Add unhealthy checker
 	unhealthyChecker := &mockHealthChecker{
 		name:   "unhealthy-service",
-		status: StatusUnhealthy,
+		status: HealthStatusUnhealthy,
 	}
 	manager.RegisterChecker(unhealthyChecker)
 
@@ -102,17 +101,17 @@ func TestHealthManager_WithCheckers(t *testing.T) {
 	status := manager.GetStatus()
 
 	// Overall status should be unhealthy due to one unhealthy service
-	assert.Equal(t, StatusUnhealthy, status.Status)
+	assert.Equal(t, HealthStatusUnhealthy, status.Status)
 	assert.Equal(t, 2, len(status.Components))
 
 	// Check individual component statuses
-	componentMap := make(map[string]ComponentHealth)
-	for _, comp := range status.Components {
-		componentMap[comp.Name] = comp
+	componentMap := make(map[string]*ComponentHealth)
+	for name, comp := range status.Components {
+		componentMap[name] = comp
 	}
 
-	assert.Equal(t, StatusHealthy, componentMap["healthy-service"].Status)
-	assert.Equal(t, StatusUnhealthy, componentMap["unhealthy-service"].Status)
+	assert.Equal(t, HealthStatusHealthy, componentMap["healthy-service"].Status)
+	assert.Equal(t, HealthStatusUnhealthy, componentMap["unhealthy-service"].Status)
 }
 
 func TestHealthHandler_HandleHealth(t *testing.T) {
@@ -129,11 +128,11 @@ func TestHealthHandler_HandleHealth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 
-	var response HealthStatus
+	var response *SystemHealth
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, HealthStatusHealthy, response.Status)
 	assert.Equal(t, "1.0.0", response.Version)
 }
 
@@ -155,7 +154,7 @@ func TestHealthHandler_HandleReadiness(t *testing.T) {
 	// Add unhealthy checker
 	unhealthyChecker := &mockHealthChecker{
 		name:   "unhealthy-service",
-		status: StatusUnhealthy,
+		status: HealthStatusUnhealthy,
 	}
 	manager.RegisterChecker(unhealthyChecker)
 
@@ -198,7 +197,7 @@ func TestHealthHandler_HandleComponentHealth(t *testing.T) {
 	// Add test checker
 	checker := &mockHealthChecker{
 		name:   "test-service",
-		status: StatusHealthy,
+		status: HealthStatusHealthy,
 	}
 	manager.RegisterChecker(checker)
 
@@ -221,7 +220,7 @@ func TestHealthHandler_HandleComponentHealth(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-service", response.Name)
-	assert.Equal(t, StatusHealthy, response.Status)
+	assert.Equal(t, HealthStatusHealthy, response.Status)
 }
 
 func TestHealthHandler_HandleComponentHealth_NotFound(t *testing.T) {
@@ -247,7 +246,7 @@ func TestHealthManager_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		checker := &mockHealthChecker{
 			name:   fmt.Sprintf("service-%d", i),
-			status: StatusHealthy,
+			status: HealthStatusHealthy,
 		}
 		manager.RegisterChecker(checker)
 	}
@@ -287,19 +286,22 @@ func (m *mockHealthChecker) Name() string {
 	return m.name
 }
 
-func (m *mockHealthChecker) Check(ctx context.Context) ComponentHealth {
+func (m *mockHealthChecker) Check(ctx context.Context) error {
 	atomic.AddInt64(&m.checkCount, 1)
 
 	if m.shouldPanic {
 		panic("mock panic")
 	}
 
-	return ComponentHealth{
-		Name:      m.name,
-		Status:    m.status,
-		Message:   "Mock checker",
-		Timestamp: time.Now(),
+	if m.status == HealthStatusUnhealthy {
+		return fmt.Errorf("mock checker is unhealthy")
 	}
+
+	return nil
+}
+
+func (m *mockHealthChecker) Timeout() time.Duration {
+	return 5 * time.Second
 }
 
 func (m *mockHealthChecker) GetCheckCount() int64 {
@@ -313,7 +315,7 @@ func TestHealthChecker_Panic_Recovery(t *testing.T) {
 	// Add panicking checker
 	panicChecker := &mockHealthChecker{
 		name:        "panic-service",
-		status:      StatusHealthy,
+		status:      HealthStatusHealthy,
 		shouldPanic: true,
 	}
 	manager.RegisterChecker(panicChecker)
@@ -331,13 +333,13 @@ func TestHealthChecker_Panic_Recovery(t *testing.T) {
 	assert.NotNil(t, status)
 
 	// The panicking component should be marked as unhealthy
-	componentMap := make(map[string]ComponentHealth)
-	for _, comp := range status.Components {
-		componentMap[comp.Name] = comp
+	componentMap := make(map[string]*ComponentHealth)
+	for name, comp := range status.Components {
+		componentMap[name] = comp
 	}
 
 	if comp, exists := componentMap["panic-service"]; exists {
-		assert.Equal(t, StatusUnhealthy, comp.Status)
+		assert.Equal(t, HealthStatusUnhealthy, comp.Status)
 		assert.Contains(t, comp.Message, "check failed")
 	}
 }
@@ -350,7 +352,7 @@ func BenchmarkHealthManager_GetStatus(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		checker := &mockHealthChecker{
 			name:   fmt.Sprintf("service-%d", i),
-			status: StatusHealthy,
+			status: HealthStatusHealthy,
 		}
 		manager.RegisterChecker(checker)
 	}
