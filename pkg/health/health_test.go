@@ -37,7 +37,7 @@ func TestHealthManager_RegisterChecker(t *testing.T) {
 	manager.RegisterChecker(checker)
 
 	assert.Equal(t, 1, len(manager.checkers))
-	assert.Contains(t, manager.checkers, checker)
+	assert.Equal(t, checker, manager.checkers["test-checker"])
 }
 
 func TestHealthManager_StartStop(t *testing.T) {
@@ -206,7 +206,7 @@ func TestHealthHandler_HandleComponentHealth(t *testing.T) {
 	manager.Start(ctx)
 	time.Sleep(50 * time.Millisecond)
 
-	req, err := http.NewRequest("GET", "/health/component?name=test-service", nil)
+	req, err := http.NewRequest("GET", "/health/component?component=test-service", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -228,14 +228,14 @@ func TestHealthHandler_HandleComponentHealth_NotFound(t *testing.T) {
 	manager := NewHealthManager("1.0.0", logger)
 	handler := NewHealthHandler(manager)
 
-	req, err := http.NewRequest("GET", "/health/component?name=nonexistent", nil)
+	req, err := http.NewRequest("GET", "/health/component?component=nonexistent", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
 	handler.HandleComponentHealth(rr, req)
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Equal(t, "Component not found", rr.Body.String())
+	assert.Equal(t, "component nonexistent not found\n", rr.Body.String())
 }
 
 func TestHealthManager_ConcurrentAccess(t *testing.T) {

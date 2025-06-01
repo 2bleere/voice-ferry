@@ -178,7 +178,7 @@ func (hm *HealthManager) performSingleHealthCheck(ctx context.Context, name stri
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("health check panicked: %v", r)
+				err = fmt.Errorf("check failed due to panic: %v", r)
 			}
 		}()
 		err = checker.Check(checkCtx)
@@ -421,10 +421,10 @@ func (hh *HealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Request)
 
 	if health.Status == HealthStatusHealthy || health.Status == HealthStatusDegraded {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Ready"))
+		w.Write([]byte("ready"))
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("Not Ready"))
+		w.Write([]byte("not ready"))
 	}
 }
 
@@ -432,7 +432,7 @@ func (hh *HealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Request)
 func (hh *HealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	// Simple liveness check - just return OK if the service is running
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Alive"))
+	w.Write([]byte("alive"))
 }
 
 // HandleComponentHealth handles individual component health endpoints
