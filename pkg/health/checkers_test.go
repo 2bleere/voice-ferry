@@ -18,19 +18,16 @@ func TestSIPServerHealthChecker(t *testing.T) {
 	assert.Equal(t, "sip_server", checker.Name())
 
 	ctx := context.Background()
-	health := checker.Check(ctx)
+	err := checker.Check(ctx)
 
-	assert.Equal(t, "sip_server", health.Name)
-	assert.Equal(t, StatusHealthy, health.Status)
-	assert.Equal(t, "SIP server is running", health.Message)
-	assert.True(t, health.Timestamp.After(time.Time{}))
+	assert.NoError(t, err)
 
 	// Test with server stopped
 	running = false
-	health = checker.Check(ctx)
+	err = checker.Check(ctx)
 
-	assert.Equal(t, StatusUnhealthy, health.Status)
-	assert.Equal(t, "SIP server is not running", health.Message)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not running")
 }
 
 func TestRedisHealthChecker(t *testing.T) {
