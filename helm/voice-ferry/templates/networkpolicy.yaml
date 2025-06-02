@@ -1,0 +1,58 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "voice-ferry.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "voice-ferry.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from: []
+    ports:
+    - protocol: UDP
+      port: {{ .Values.voiceFerry.sip.port }}
+    {{- if .Values.voiceFerry.sip.tls.enabled }}
+    - protocol: TCP
+      port: {{ .Values.voiceFerry.sip.tls.port }}
+    {{- end }}
+    - protocol: TCP
+      port: {{ .Values.voiceFerry.grpc.port }}
+    - protocol: TCP
+      port: {{ .Values.voiceFerry.health.port }}
+  {{- with .Values.networkPolicy.ingress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow etcd access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 2379
+  # Allow Redis access
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 6379
+  # Allow RTPEngine access
+  - to: []
+    ports:
+    - protocol: UDP
+      port: {{ .Values.rtpengine.config.listenNg }}
+  {{- with .Values.networkPolicy.egress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

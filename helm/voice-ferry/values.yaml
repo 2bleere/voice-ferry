@@ -1,0 +1,502 @@
+# Default values for voice-ferry.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Voice Ferry B2BUA configuration
+voiceFerry:
+  image:
+    registry: ghcr.io
+    repository: 2bleere/voice-ferry
+    tag: "latest"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+
+  replicaCount: 3
+  
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  # Security Context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    capabilities:
+      drop:
+        - ALL
+
+  # SIP Configuration
+  sip:
+    host: "0.0.0.0"
+    port: 5060
+    transport: "UDP"
+    userAgent: "Voice Ferry SIP B2BUA v1.0"
+    
+    tls:
+      enabled: true
+      port: 5061
+      certFile: "/etc/ssl/certs/tls.crt"
+      keyFile: "/etc/ssl/private/tls.key"
+    
+    timeouts:
+      transaction: "32s"
+      dialog: "1800s"
+      registration: "3600s"
+      invite: "180s"
+
+  # gRPC API Configuration
+  grpc:
+    host: "0.0.0.0"
+    port: 50051
+    
+    tls:
+      enabled: true
+      certFile: "/etc/ssl/certs/tls.crt"
+      keyFile: "/etc/ssl/private/tls.key"
+    
+    rateLimit:
+      enabled: true
+      requestsPerMinute: 1000
+
+  # Health and Metrics
+  health:
+    host: "0.0.0.0"
+    port: 8080
+    tls:
+      enabled: false
+
+  metrics:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8080
+    path: "/metrics"
+
+  # Logging Configuration
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+
+  # Security Configuration
+  security:
+    jwt:
+      enabled: true
+      signingKey: "your-secret-key-change-this"
+      expiration: "24h"
+      issuer: "voice-ferry-b2bua"
+    
+    ipAcl:
+      enabled: true
+      defaultAction: "allow"
+      rules: []
+    
+    rateLimiting:
+      enabled: true
+      requestsPerSecond: 100
+      burstSize: 200
+
+  # Session Management
+  sessionLimits:
+    enabled: true
+    maxSessionsPerUser: 10
+    action: "reject"  # reject or queue
+
+# Service configuration
+service:
+  type: ClusterIP
+  
+  sip:
+    port: 5060
+    targetPort: 5060
+    nodePort: ""
+  
+  sipTls:
+    port: 5061
+    targetPort: 5061
+    nodePort: ""
+  
+  grpc:
+    port: 50051
+    targetPort: 50051
+    nodePort: ""
+  
+  health:
+    port: 8080
+    targetPort: 8080
+    nodePort: ""
+
+  annotations: {}
+  labels: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: voice-ferry.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: voice-ferry
+            port: 8080
+  tls: []
+    # - secretName: voice-ferry-tls
+    #   hosts:
+    #     - voice-ferry.local
+
+# TLS/SSL Configuration
+tls:
+  enabled: true
+  generateCerts: true
+  secretName: "voice-ferry-tls"
+  dnsNames:
+    - voice-ferry.local
+    - voice-ferry.voice-ferry.svc.cluster.local
+
+# Node selector, tolerations and affinity
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - voice-ferry
+        topologyKey: kubernetes.io/hostname
+
+# Persistent storage
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+# External Dependencies Configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "change-me-in-production"
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 8Gi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+etcd:
+  enabled: true
+  auth:
+    rbac:
+      create: true
+    token:
+      type: jwt
+  persistence:
+    enabled: true
+    size: 10Gi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  replicaCount: 3
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# Monitoring Stack
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: true
+        size: 50Gi
+      retention: "30d"
+      resources:
+        requests:
+          memory: 1Gi
+          cpu: 500m
+        limits:
+          memory: 2Gi
+          cpu: 1000m
+    alertmanager:
+      enabled: true
+      persistentVolume:
+        enabled: true
+        size: 10Gi
+    nodeExporter:
+      enabled: true
+    kubeStateMetrics:
+      enabled: true
+
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+    adminPassword: "change-me-in-production"
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server:80
+          access: proxy
+          isDefault: true
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'voice-ferry'
+          orgId: 1
+          folder: 'Voice Ferry'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/voice-ferry
+    dashboards:
+      voice-ferry:
+        voice-ferry-overview:
+          gnetId: 1860
+          revision: 27
+          datasource: Prometheus
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  ingress:
+    enabled: true
+    allowExternal: true
+  egress:
+    enabled: true
+    allowExternal: true
+
+# Service Mesh (Istio) Configuration  
+istio:
+  enabled: false
+  virtualService:
+    enabled: false
+    hosts: []
+    gateways: []
+  destinationRule:
+    enabled: false
+    trafficPolicy: {}
+  peerAuthentication:
+    enabled: false
+    mtls:
+      mode: STRICT
+
+# Backup and Disaster Recovery
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  retention: "30"
+  s3:
+    bucket: ""
+    region: ""
+    accessKeyId: ""
+    secretAccessKey: ""
+
+# Development and Testing
+development:
+  enabled: false
+  debug: false
+  hotReload: false
+  localStorageClass: "local-path"
+
+# Redis configuration
+redis:
+  enabled: true
+  
+  # Use external Redis cluster
+  external:
+    enabled: false
+    hosts: []
+    # - "redis-cluster-0.redis-cluster.svc.cluster.local:6379"
+    # - "redis-cluster-1.redis-cluster.svc.cluster.local:6379"
+    
+  # Internal Redis cluster (using bitnami chart)
+  cluster:
+    enabled: true
+    nodes: 6
+    replicas: 1
+  
+  auth:
+    enabled: false
+    password: ""
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# etcd configuration
+etcd:
+  enabled: true
+  
+  # Use external etcd
+  external:
+    enabled: false
+    endpoints: []
+    # - "etcd-0.etcd.svc.cluster.local:2379"
+    # - "etcd-1.etcd.svc.cluster.local:2379"
+  
+  # Internal etcd cluster (using bitnami chart)
+  replicaCount: 3
+  
+  auth:
+    rbac:
+      create: false
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# RTPEngine configuration
+rtpengine:
+  enabled: true
+  
+  image:
+    registry: docker.io
+    repository: 2bleere/rtpengine
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  replicaCount: 2
+  
+  config:
+    interface: "eth0"
+    listenNg: 22222
+    portMin: 10000
+    portMax: 20000
+    logLevel: 6
+    
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+    annotations: {}
+  
+  # Network configuration
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+  
+  # Security context for RTPEngine (requires privileges)
+  securityContext:
+    privileged: true
+    capabilities:
+      add:
+        - NET_ADMIN
+        - SYS_ADMIN
+
+# ServiceMonitor for Prometheus monitoring
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  annotations: {}
+
+# Network Policies
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: false
+
+# RBAC
+rbac:
+  create: true
+  
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Tests
+tests:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: curlimages/curl
+    tag: "latest"

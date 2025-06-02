@@ -1,0 +1,50 @@
+{{- if and .Values.voiceFerry.metrics.enabled .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "voice-ferry.fullname" . }}
+  namespace: {{ .Values.serviceMonitor.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "voice-ferry.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: health
+    path: {{ .Values.voiceFerry.metrics.path }}
+    interval: {{ .Values.serviceMonitor.interval | default "30s" }}
+    scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+    {{- if .Values.voiceFerry.metrics.tls.enabled }}
+    scheme: https
+    tlsConfig:
+      serverName: {{ include "voice-ferry.fullname" . }}
+      {{- if .Values.voiceFerry.metrics.tls.caFile }}
+      caFile: {{ .Values.voiceFerry.metrics.tls.caFile }}
+      {{- end }}
+      {{- if .Values.voiceFerry.metrics.tls.certFile }}
+      certFile: {{ .Values.voiceFerry.metrics.tls.certFile }}
+      {{- end }}
+      {{- if .Values.voiceFerry.metrics.tls.keyFile }}
+      keyFile: {{ .Values.voiceFerry.metrics.tls.keyFile }}
+      {{- end }}
+      insecureSkipVerify: {{ .Values.voiceFerry.metrics.tls.insecureSkipVerify | default false }}
+    {{- else }}
+    scheme: http
+    {{- end }}
+    {{- with .Values.serviceMonitor.metricRelabelings }}
+    metricRelabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.serviceMonitor.relabelings }}
+    relabelings:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}

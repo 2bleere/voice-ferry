@@ -1,0 +1,170 @@
+# Development values for voice-ferry
+# This is a YAML-formatted file for development environment
+
+voiceFerry:
+  replicaCount: 1
+  
+  image:
+    registry: ghcr.io
+    repository: 2bleere/voice-ferry
+    tag: "develop"
+    pullPolicy: Always
+  
+  autoscaling:
+    enabled: false
+  
+  podDisruptionBudget:
+    enabled: false
+  
+  logging:
+    level: "debug"
+    format: "json"
+  
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# External dependencies - lightweight for development
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 50m
+      limits:
+        memory: 128Mi
+        cpu: 200m
+  replica:
+    replicaCount: 0
+  metrics:
+    enabled: false
+
+etcd:
+  enabled: true
+  auth:
+    rbac:
+      create: false
+  persistence:
+    enabled: false
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+
+# Monitoring - minimal for development
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: false
+      retention: "7d"
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 100m
+        limits:
+          memory: 512Mi
+          cpu: 500m
+    alertmanager:
+      enabled: false
+    nodeExporter:
+      enabled: false
+    kubeStateMetrics:
+      enabled: false
+
+  grafana:
+    enabled: true
+    persistence:
+      enabled: false
+    adminPassword: "admin"
+
+# Development features
+development:
+  enabled: true
+  debug: true
+  hotReload: true
+  localStorageClass: "local-path"
+
+# Network policies disabled for easier development
+networkPolicy:
+  enabled: false
+
+# Service configuration for development
+service:
+  type: ClusterIP
+
+# Disable TLS in development
+tls:
+  enabled: false
+
+voiceFerry:
+  sip:
+    tls:
+      enabled: false
+  grpc:
+    tls:
+      enabled: false
+
+# Redis configuration for development
+redis:
+  enabled: true
+  cluster:
+    enabled: false
+    nodes: 3
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# etcd configuration for development
+etcd:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# RTPEngine configuration for development
+rtpengine:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Enable tests in development
+tests:
+  enabled: true
+
+# Monitoring disabled in development
+serviceMonitor:
+  enabled: false
+
+# Network policies disabled in development
+networkPolicy:
+  enabled: false

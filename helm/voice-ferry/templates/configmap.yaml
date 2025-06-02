@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "voice-ferry.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    debug: false
+    log_level: {{ .Values.voiceFerry.logging.level | quote }}
+    
+    sip:
+      host: {{ .Values.voiceFerry.sip.host | quote }}
+      port: {{ .Values.voiceFerry.sip.port }}
+      transport: {{ .Values.voiceFerry.sip.transport | quote }}
+      user_agent: {{ .Values.voiceFerry.sip.userAgent | quote }}
+      {{- if .Values.voiceFerry.sip.tls.enabled }}
+      tls:
+        enabled: {{ .Values.voiceFerry.sip.tls.enabled }}
+        port: {{ .Values.voiceFerry.sip.tls.port }}
+        cert_file: {{ .Values.voiceFerry.sip.tls.certFile | quote }}
+        key_file: {{ .Values.voiceFerry.sip.tls.keyFile | quote }}
+      {{- end }}
+      timeouts:
+        transaction: {{ .Values.voiceFerry.sip.timeouts.transaction | quote }}
+        dialog: {{ .Values.voiceFerry.sip.timeouts.dialog | quote }}
+        registration: {{ .Values.voiceFerry.sip.timeouts.registration | quote }}
+        invite: {{ .Values.voiceFerry.sip.timeouts.invite | quote }}
+    
+    grpc:
+      host: {{ .Values.voiceFerry.grpc.host | quote }}
+      port: {{ .Values.voiceFerry.grpc.port }}
+      {{- if .Values.voiceFerry.grpc.tls.enabled }}
+      tls:
+        enabled: {{ .Values.voiceFerry.grpc.tls.enabled }}
+        cert_file: {{ .Values.voiceFerry.grpc.tls.certFile | quote }}
+        key_file: {{ .Values.voiceFerry.grpc.tls.keyFile | quote }}
+      {{- end }}
+      {{- if .Values.voiceFerry.grpc.rateLimit.enabled }}
+      rate_limit:
+        enabled: {{ .Values.voiceFerry.grpc.rateLimit.enabled }}
+        requests_per_minute: {{ .Values.voiceFerry.grpc.rateLimit.requestsPerMinute }}
+      {{- end }}
+    
+    health:
+      host: {{ .Values.voiceFerry.health.host | quote }}
+      port: {{ .Values.voiceFerry.health.port }}
+    
+    {{- if .Values.voiceFerry.metrics.enabled }}
+    metrics:
+      enabled: {{ .Values.voiceFerry.metrics.enabled }}
+      host: {{ .Values.voiceFerry.metrics.host | quote }}
+      port: {{ .Values.voiceFerry.metrics.port }}
+      path: {{ .Values.voiceFerry.metrics.path | quote }}
+    {{- end }}
+    
+    logging:
+      level: {{ .Values.voiceFerry.logging.level | quote }}
+      format: {{ .Values.voiceFerry.logging.format | quote }}
+      output: {{ .Values.voiceFerry.logging.output | quote }}
+    
+    etcd:
+      endpoints:
+        - {{ include "voice-ferry.etcdConnection" . | quote }}
+      dial_timeout: 5s
+      request_timeout: 10s
+    
+    {{- if .Values.redis.enabled }}
+    redis:
+      enabled: {{ .Values.redis.enabled }}
+      host: {{ include "voice-ferry.redisConnection" . | quote }}
+      port: 6379
+      db: 0
+      pool_size: 20
+      {{- if .Values.voiceFerry.sessionLimits.enabled }}
+      enable_session_limits: {{ .Values.voiceFerry.sessionLimits.enabled }}
+      max_sessions_per_user: {{ .Values.voiceFerry.sessionLimits.maxSessionsPerUser }}
+      session_limit_action: {{ .Values.voiceFerry.sessionLimits.action | quote }}
+      {{- end }}
+    {{- end }}
+    
+    {{- if .Values.rtpengine.enabled }}
+    rtpengine:
+      enabled: {{ .Values.rtpengine.enabled }}
+      instances:
+        - id: "rtpengine-1"
+          host: {{ include "voice-ferry.rtpengineService" . | quote }}
+          port: {{ .Values.rtpengine.config.listenNg }}
+          weight: 100
+          enabled: true
+      timeout: 5s
+      max_retries: 3
+    {{- end }}
+    
+    security:
+      {{- if .Values.voiceFerry.security.jwt.enabled }}
+      jwt:
+        enabled: {{ .Values.voiceFerry.security.jwt.enabled }}
+        signing_key: {{ .Values.voiceFerry.security.jwt.signingKey | quote }}
+        expiration: {{ .Values.voiceFerry.security.jwt.expiration | quote }}
+        issuer: {{ .Values.voiceFerry.security.jwt.issuer | quote }}
+      {{- end }}
+      {{- if .Values.voiceFerry.security.ipAcl.enabled }}
+      ip_acl:
+        enabled: {{ .Values.voiceFerry.security.ipAcl.enabled }}
+        default_action: {{ .Values.voiceFerry.security.ipAcl.defaultAction | quote }}
+        {{- if .Values.voiceFerry.security.ipAcl.rules }}
+        rules:
+          {{- toYaml .Values.voiceFerry.security.ipAcl.rules | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.voiceFerry.security.rateLimiting.enabled }}
+      rate_limiting:
+        enabled: {{ .Values.voiceFerry.security.rateLimiting.enabled }}
+        requests_per_second: {{ .Values.voiceFerry.security.rateLimiting.requestsPerSecond }}
+        burst_size: {{ .Values.voiceFerry.security.rateLimiting.burstSize }}
+      {{- end }}

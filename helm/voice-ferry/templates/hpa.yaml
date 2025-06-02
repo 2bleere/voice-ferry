@@ -1,0 +1,33 @@
+{{- if .Values.voiceFerry.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "voice-ferry.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "voice-ferry.fullname" . }}
+  minReplicas: {{ .Values.voiceFerry.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.voiceFerry.autoscaling.maxReplicas }}
+  metrics:
+  {{- if .Values.voiceFerry.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.voiceFerry.autoscaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.voiceFerry.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.voiceFerry.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}

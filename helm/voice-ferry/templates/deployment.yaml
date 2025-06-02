@@ -1,0 +1,177 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voice-ferry.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.voiceFerry.autoscaling.enabled }}
+  replicas: {{ .Values.voiceFerry.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.voiceFerry.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "voice-ferry.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.tls.enabled }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+      labels:
+        {{- include "voice-ferry.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.voiceFerry.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "voice-ferry.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.voiceFerry.securityContext | nindent 8 }}
+      containers:
+      - name: voice-ferry
+        image: {{ include "voice-ferry.image" . }}
+        imagePullPolicy: {{ .Values.voiceFerry.image.pullPolicy }}
+        args:
+        - -config
+        - /etc/voice-ferry/config.yaml
+        ports:
+        - name: sip-udp
+          containerPort: {{ .Values.voiceFerry.sip.port }}
+          protocol: UDP
+        {{- if .Values.voiceFerry.sip.tls.enabled }}
+        - name: sip-tls
+          containerPort: {{ .Values.voiceFerry.sip.tls.port }}
+          protocol: TCP
+        {{- end }}
+        - name: grpc
+          containerPort: {{ .Values.voiceFerry.grpc.port }}
+          protocol: TCP
+        - name: health
+          containerPort: {{ .Values.voiceFerry.health.port }}
+          protocol: TCP
+        {{- if .Values.voiceFerry.metrics.enabled }}
+        - name: metrics
+          containerPort: {{ .Values.voiceFerry.metrics.port }}
+          protocol: TCP
+        {{- end }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        {{- if .Values.voiceFerry.security.jwt.enabled }}
+        - name: JWT_SIGNING_KEY
+          value: {{ .Values.voiceFerry.security.jwt.signingKey | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/voice-ferry
+          readOnly: true
+        {{- if .Values.tls.enabled }}
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: tls-private
+          mountPath: /etc/ssl/private
+          readOnly: true
+        {{- end }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          mountPath: /data
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /healthz/live
+            port: health
+            scheme: {{ if .Values.voiceFerry.health.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: health
+            scheme: {{ if .Values.voiceFerry.health.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /healthz/startup
+            port: health
+            scheme: {{ if .Values.voiceFerry.health.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /healthz/startup
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+        resources:
+          {{- toYaml .Values.voiceFerry.resources | nindent 10 }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "voice-ferry.configMapName" . }}
+      {{- if .Values.tls.enabled }}
+      - name: tls-certs
+        secret:
+          secretName: {{ include "voice-ferry.tlsSecretName" . }}
+          items:
+          - key: tls.crt
+            path: tls.crt
+      - name: tls-private
+        secret:
+          secretName: {{ include "voice-ferry.tlsSecretName" . }}
+          items:
+          - key: tls.key
+            path: tls.key
+          defaultMode: 0600
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "voice-ferry.fullname" . }}-data
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.voiceFerry.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "voice-ferry.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.voiceFerry.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.voiceFerry.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.voiceFerry.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.voiceFerry.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "voice-ferry.selectorLabels" . | nindent 6 }}
+{{- end }}

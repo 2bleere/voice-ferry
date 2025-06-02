@@ -1,0 +1,104 @@
+{{- if .Values.rtpengine.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voice-ferry.rtpengineService" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+    component: rtpengine
+spec:
+  replicas: {{ .Values.rtpengine.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "voice-ferry.selectorLabels" . | nindent 6 }}
+      component: rtpengine
+  template:
+    metadata:
+      labels:
+        {{- include "voice-ferry.selectorLabels" . | nindent 8 }}
+        component: rtpengine
+    spec:
+      {{- if .Values.rtpengine.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: {{ .Values.rtpengine.dnsPolicy }}
+      {{- end }}
+      containers:
+      - name: rtpengine
+        image: {{ include "voice-ferry.rtpengineImage" . }}
+        imagePullPolicy: {{ .Values.rtpengine.image.pullPolicy }}
+        command:
+        - rtpengine
+        - --interface={{ .Values.rtpengine.config.interface }}
+        - --listen-ng={{ .Values.rtpengine.config.listenNg }}
+        - --port-min={{ .Values.rtpengine.config.portMin }}
+        - --port-max={{ .Values.rtpengine.config.portMax }}
+        - --log-level={{ .Values.rtpengine.config.logLevel }}
+        - --log-stderr
+        - --no-fallback
+        ports:
+        - containerPort: {{ .Values.rtpengine.config.listenNg }}
+          protocol: UDP
+          name: ng-control
+        - containerPort: {{ .Values.rtpengine.config.portMin }}
+          protocol: UDP
+          name: rtp-start
+        - containerPort: {{ .Values.rtpengine.config.portMax }}
+          protocol: UDP
+          name: rtp-end
+        securityContext:
+          {{- toYaml .Values.rtpengine.securityContext | nindent 10 }}
+        resources:
+          {{- toYaml .Values.rtpengine.resources | nindent 10 }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep rtpengine"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep rtpengine"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "voice-ferry.rtpengineService" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "voice-ferry.labels" . | nindent 4 }}
+    component: rtpengine
+  {{- with .Values.rtpengine.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.rtpengine.service.type }}
+  {{- if .Values.rtpengine.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.rtpengine.service.externalTrafficPolicy }}
+  {{- end }}
+  selector:
+    {{- include "voice-ferry.selectorLabels" . | nindent 4 }}
+    component: rtpengine
+  ports:
+  - port: {{ .Values.rtpengine.config.listenNg }}
+    protocol: UDP
+    name: ng-control
+  - port: {{ .Values.rtpengine.config.portMin }}
+    protocol: UDP
+    name: rtp-start
+  - port: {{ .Values.rtpengine.config.portMax }}
+    protocol: UDP
+    name: rtp-end
+{{- end }}
