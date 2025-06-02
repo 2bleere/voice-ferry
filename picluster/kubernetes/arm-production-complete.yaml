@@ -1,0 +1,1171 @@
+# Voice Ferry ARM Production Deployment - Complete Platform
+# Optimized for ARM64 architecture (Raspberry Pi clusters, ARM-based cloud instances)
+# Includes: Namespace, Redis Cluster, etcd Cluster, Web-UI, and SIP B2BUA
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voice-ferry
+  labels:
+    name: voice-ferry
+    app.kubernetes.io/name: voice-ferry
+    app.kubernetes.io/version: "1.0.0"
+    platform: "arm64"
+---
+# ===========================================
+# REDIS CLUSTER FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cluster-config
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    platform: arm64
+data:
+  redis.conf: |
+    cluster-enabled yes
+    cluster-require-full-coverage no
+    cluster-node-timeout 15000
+    cluster-config-file /data/nodes.conf
+    cluster-migration-barrier 1
+    appendonly yes
+    protected-mode no
+    bind 0.0.0.0
+    port 6379
+    tcp-keepalive 60
+    tcp-backlog 511
+    timeout 0
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+    lazyfree-lazy-eviction yes
+    lazyfree-lazy-expire yes
+    lazyfree-lazy-server-del yes
+    replica-lazy-flush yes
+    # ARM-specific optimizations
+    tcp-keepalive 300
+    hz 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    service: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: client
+  - port: 16379
+    targetPort: 16379
+    name: cluster
+  clusterIP: None
+  selector:
+    app: redis-cluster
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    platform: arm64
+spec:
+  serviceName: redis
+  replicas: 6
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+        platform: arm64
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+      - key: arm
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        command:
+        - redis-server
+        - /conf/redis.conf
+        ports:
+        - containerPort: 6379
+          name: client
+        - containerPort: 16379
+          name: cluster
+        volumeMounts:
+        - name: conf
+          mountPath: /conf
+          readOnly: false
+        - name: data
+          mountPath: /data
+          readOnly: false
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: conf
+        configMap:
+          name: redis-cluster-config
+          defaultMode: 0755
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: redis-cluster
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "longhorn"  # Adjust for your ARM cluster storage class
+      resources:
+        requests:
+          storage: 1Gi
+---
+# ===========================================
+# ETCD CLUSTER FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd-headless
+  namespace: voice-ferry
+  labels:
+    app: etcd
+    platform: arm64
+spec:
+  clusterIP: None
+  ports:
+  - port: 2379
+    name: client
+  - port: 2380
+    name: peer
+  selector:
+    app: etcd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: voice-ferry
+  labels:
+    app: etcd
+    service: etcd
+spec:
+  ports:
+  - port: 2379
+    name: client
+  selector:
+    app: etcd
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+  namespace: voice-ferry
+  labels:
+    app: etcd
+    component: database
+    platform: arm64
+spec:
+  serviceName: etcd-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+        component: database
+        platform: arm64
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+      - key: arm
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.5.9
+        command:
+        - etcd
+        - --name=etcd-0
+        - --listen-peer-urls=http://0.0.0.0:2380
+        - --listen-client-urls=http://0.0.0.0:2379
+        - --advertise-client-urls=http://etcd.voice-ferry.svc.cluster.local:2379
+        - --initial-advertise-peer-urls=http://etcd-0.etcd-headless.voice-ferry.svc.cluster.local:2380
+        - --initial-cluster=etcd-0=http://etcd-0.etcd-headless.voice-ferry.svc.cluster.local:2380
+        - --initial-cluster-state=new
+        - --initial-cluster-token=voice-ferry-etcd-cluster
+        - --force-new-cluster
+        - --data-dir=/etcd-data
+        - --auto-compaction-retention=1
+        - --max-request-bytes=33554432
+        - --quota-backend-bytes=8589934592
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 2379
+          name: client
+        - containerPort: 2380
+          name: peer
+        volumeMounts:
+        - name: etcd-data
+          mountPath: /etcd-data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 2379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 2379
+          initialDelaySeconds: 5
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: etcd-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "longhorn"  # Adjust for your ARM cluster storage class
+      resources:
+        requests:
+          storage: 2Gi
+---
+# ===========================================
+# VOICE FERRY CONFIG FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-ferry-config
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: config
+    platform: arm64
+data:
+  config.yaml: |
+    debug: false
+    log_level: "info"
+    
+    sip:
+      host: "0.0.0.0"
+      port: 5060
+      transport: "UDP"
+      tls:
+        enabled: true
+        port: 5061
+        cert_file: "/etc/ssl/certs/tls.crt"
+        key_file: "/etc/ssl/private/tls.key"
+      timeouts:
+        transaction: 32s
+        dialog: 1800s
+        registration: 3600s
+        invite: 180s
+      user_agent: "Voice Ferry SIP B2BUA v1.0 ARM64"
+    
+    grpc:
+      host: "0.0.0.0"
+      port: 50051
+      tls:
+        enabled: false  # Enable in production with proper certs
+      rate_limit:
+        enabled: true
+        requests_per_minute: 1000
+    
+    health:
+      host: "0.0.0.0"
+      port: 8080
+      endpoints:
+        liveness: "/healthz/live"
+        readiness: "/healthz/ready"
+        startup: "/healthz/startup"
+        metrics: "/metrics"
+    
+    storage:
+      redis:
+        url: "redis://redis:6379"
+        password: ""
+        database: 0
+        pool_size: 10
+        max_retries: 3
+        retry_delay: 1s
+      etcd:
+        endpoints: ["etcd:2379"]
+        username: ""
+        password: ""
+        timeout: 5s
+        dial_timeout: 5s
+        keep_alive_time: 30s
+        keep_alive_timeout: 5s
+        max_retries: 3
+        retry_delay: 1s
+    
+    rtpengine:
+      instances:
+        - id: "rtpengine-1"
+          host: "192.168.1.208"
+          port: 22222
+          weight: 100
+          enabled: true
+      timeout: 30s
+    
+    security:
+      jwt:
+        enabled: true
+        signing_key: "${JWT_SIGNING_KEY}"
+        expiration: 24h
+        issuer: "voice-ferry-b2bua"
+        audience: "voice-ferry-api"
+      ip_acl:
+        enabled: true
+        default_action: "allow"
+        rules:
+          - cidr: "10.0.0.0/8"
+            action: "allow"
+            description: "Kubernetes cluster network"
+          - cidr: "172.16.0.0/12"
+            action: "allow"
+            description: "Private network"
+          - cidr: "192.168.0.0/16"
+            action: "allow"
+            description: "Private network"
+      rate_limiting:
+        enabled: true
+        global:
+          requests_per_second: 500  # Reduced for ARM
+          burst: 1000
+        per_ip:
+          requests_per_second: 50   # Reduced for ARM
+          burst: 100
+    
+    sessions:
+      storage: "redis"
+      limits:
+        global_max_sessions: 5000   # Reduced for ARM
+        per_user_max_sessions: 10
+        per_ip_max_sessions: 50     # Reduced for ARM
+      timeouts:
+        idle_timeout: 1800s
+        max_session_time: 7200s
+      cleanup:
+        interval: 60s
+        expired_sessions_batch_size: 50  # Reduced for ARM
+    
+    routing:
+      default_action: "reject"
+      storage: "etcd"
+      max_rules: 500              # Reduced for ARM
+      evaluation_timeout: 100ms
+    
+    performance:
+      sip_workers: 4              # Reduced for ARM
+      grpc_workers: 2             # Reduced for ARM
+      max_concurrent_calls: 2000  # Reduced for ARM
+      max_connections_per_ip: 50  # Reduced for ARM
+      gc_target_percentage: 75
+    
+    monitoring:
+      health_checks:
+        interval: 30s
+        timeout: 10s
+        dependencies:
+          - name: "redis"
+            type: "redis"
+            config:
+              host: "redis"
+              port: 6379
+          - name: "etcd"
+            type: "etcd"
+            config:
+              endpoints: ["etcd:2379"]
+---
+# ===========================================
+# SECRETS FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: voice-ferry-secrets
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: secrets
+    platform: arm64
+type: Opaque
+data:
+  # Base64 encoded JWT signing key - CHANGE THIS IN PRODUCTION!
+  jwt-signing-key: eW91ci1zZWNyZXQta2V5LWhlcmUtY2hhbmdlLW1lLWluLXByb2R1Y3Rpb24=
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-ui-secrets
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: secrets
+    platform: arm64
+type: Opaque
+data:
+  # Base64 encoded secrets - CHANGE THESE IN PRODUCTION!
+  jwt-secret: eW91ci1qd3Qtc2VjcmV0LWhlcmUtY2hhbmdlLW1lLWluLXByb2R1Y3Rpb24=
+  session-secret: eW91ci1zZXNzaW9uLXNlY3JldC1oZXJlLWNoYW5nZS1tZS1pbi1wcm9kdWN0aW9u
+---
+# ===========================================
+# SERVICE ACCOUNT FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: voice-ferry
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: serviceaccount
+    platform: arm64
+automountServiceAccountToken: false
+---
+# ===========================================
+# VOICE FERRY B2BUA DEPLOYMENT FOR ARM64
+# ===========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-ferry
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: b2bua
+    version: v1.0.0
+    platform: arm64
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: voice-ferry
+      component: b2bua
+  template:
+    metadata:
+      labels:
+        app: voice-ferry
+        component: b2bua
+        version: v1.0.0
+        platform: arm64
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: voice-ferry
+      securityContext:
+        runAsNonRoot: false
+        fsGroup: 1001
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+      - key: arm
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: voice-ferry
+        image: 2bleere/voice-ferry:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/app/b2bua-server"]
+        args: ["--config=/etc/voice-ferry/config.yaml"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          runAsNonRoot: false
+        ports:
+        - name: sip-udp
+          containerPort: 5060
+          protocol: UDP
+        - name: sip-tcp
+          containerPort: 5060
+          protocol: TCP
+        - name: sip-tls
+          containerPort: 5061
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: JWT_SIGNING_KEY
+          valueFrom:
+            secretKeyRef:
+              name: voice-ferry-secrets
+              key: jwt-signing-key
+        - name: LOG_LEVEL
+          value: "info"
+        - name: CONFIG_FILE
+          value: "/etc/voice-ferry/config.yaml"
+        - name: GOMAXPROCS
+          value: "2"  # ARM optimization
+        - name: GOGC
+          value: "100"  # ARM memory optimization
+        volumeMounts:
+        - name: config
+          mountPath: /etc/voice-ferry
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: app-logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "128Mi"  # Reduced for ARM
+            cpu: "100m"      # Reduced for ARM
+          limits:
+            memory: "512Mi"  # Reduced for ARM
+            cpu: "500m"      # Reduced for ARM
+        livenessProbe:
+          httpGet:
+            path: /healthz/live
+            port: health
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+        startupProbe:
+          httpGet:
+            path: /healthz/startup
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 30
+      volumes:
+      - name: config
+        configMap:
+          name: voice-ferry-config
+      - name: tmp
+        emptyDir: {}
+      - name: app-logs
+        emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+---
+# ===========================================
+# WEB-UI CONFIG FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-ui-config
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+    platform: arm64
+data:
+  production.env: |
+    NODE_ENV=production
+    PORT=3000
+    
+    # Security
+    JWT_SECRET=${JWT_SECRET}
+    SESSION_SECRET=${SESSION_SECRET}
+    
+    # Redis Configuration
+    REDIS_URL=redis://redis:6379
+    REDIS_PASSWORD=
+    
+    # etcd Configuration - Critical for status monitoring
+    ETCD_ENDPOINTS=http://etcd:2379
+    ETCD_USERNAME=
+    ETCD_PASSWORD=
+    
+    # gRPC Configuration
+    GRPC_ENDPOINT=voice-ferry-grpc:50051
+    GRPC_TLS_ENABLED=false
+    
+    # Logging
+    LOG_LEVEL=info
+    LOG_FILE=/app/logs/voice-ferry-ui.log
+    
+    # Rate Limiting - ARM optimized
+    RATE_LIMIT_MAX=50
+    RATE_LIMIT_WINDOW=15
+    
+    # File Storage
+    CONFIG_DIR=/app/config
+    DATA_DIR=/app/data
+    BACKUP_DIR=/app/backups
+    
+    # Monitoring - Enable for etcd status checking
+    METRICS_ENABLED=true
+    METRICS_INTERVAL=30000
+    
+    # ARM-specific optimizations
+    UV_THREADPOOL_SIZE=4
+    NODE_OPTIONS=--max-old-space-size=256
+---
+# ===========================================
+# WEB-UI DEPLOYMENT FOR ARM64
+# ===========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-ferry-web-ui
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+    version: v1.0.0
+    platform: arm64
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: voice-ferry-web-ui
+      component: web-ui
+  template:
+    metadata:
+      labels:
+        app: voice-ferry-web-ui
+        component: web-ui
+        version: v1.0.0
+        platform: arm64
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      tolerations:
+      - key: arm
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: web-ui
+        image: 2bleere/voice-ferry-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-ui-secrets
+              key: jwt-secret
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: web-ui-secrets
+              key: session-secret
+        envFrom:
+        - configMapRef:
+            name: web-ui-config
+        volumeMounts:
+        - name: app-data
+          mountPath: /app/data
+        - name: app-logs
+          mountPath: /app/logs
+        - name: app-config
+          mountPath: /app/config
+        - name: app-backups
+          mountPath: /app/backups
+        resources:
+          requests:
+            memory: "128Mi"  # Reduced for ARM
+            cpu: "50m"       # Reduced for ARM
+          limits:
+            memory: "256Mi"  # Reduced for ARM
+            cpu: "200m"      # Reduced for ARM
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 12
+      volumes:
+      - name: app-data
+        emptyDir: {}
+      - name: app-logs
+        emptyDir: {}
+      - name: app-config
+        emptyDir: {}
+      - name: app-backups
+        emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+---
+# ===========================================
+# SERVICES FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-sip
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: sip
+    platform: arm64
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: ""  # Set your LoadBalancer IP for ARM cluster
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: voice-ferry
+    component: b2bua
+  ports:
+  - name: sip-udp
+    port: 5060
+    targetPort: 5060
+    protocol: UDP
+  - name: sip-tcp
+    port: 5060
+    targetPort: 5060
+    protocol: TCP
+  - name: sip-tls
+    port: 5061
+    targetPort: 5061
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-grpc
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: grpc
+    platform: arm64
+spec:
+  type: ClusterIP
+  selector:
+    app: voice-ferry
+    component: b2bua
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-metrics
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    component: metrics
+    platform: arm64
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app: voice-ferry
+    component: b2bua
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-ferry-web-ui
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui
+    platform: arm64
+spec:
+  type: ClusterIP
+  selector:
+    app: voice-ferry-web-ui
+    component: web-ui
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+---
+# ===========================================
+# RTPENGINE SERVICE FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: rtpengine
+  namespace: voice-ferry
+  labels:
+    app: rtpengine
+    component: media
+    platform: arm64
+spec:
+  type: ClusterIP
+  ports:
+  - name: ng-port
+    port: 22222
+    targetPort: 22222
+    protocol: UDP
+  - name: http
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+  selector:
+    component: rtpengine
+---
+# ===========================================
+# INGRESS FOR ARM64 WEB-UI
+# ===========================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voice-ferry-web-ui-ingress
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: ingress
+    platform: arm64
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Adjust for your setup
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - voice-ferry.local  # Change to your domain
+    secretName: voice-ferry-tls
+  rules:
+  - host: voice-ferry.local  # Change to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: voice-ferry-web-ui
+            port:
+              number: 3000
+---
+# ===========================================
+# NETWORK POLICIES FOR ARM64
+# ===========================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: voice-ferry-network-policy
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    platform: arm64
+spec:
+  podSelector:
+    matchLabels:
+      app: voice-ferry
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from: []
+    ports:
+    - protocol: UDP
+      port: 5060
+    - protocol: TCP
+      port: 5060
+    - protocol: TCP
+      port: 5061
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: voice-ferry
+    ports:
+    - protocol: TCP
+      port: 50051
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: voice-ferry
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+---
+# ===========================================
+# POD DISRUPTION BUDGETS FOR ARM64
+# ===========================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: voice-ferry-pdb
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    platform: arm64
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: voice-ferry
+      component: b2bua
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-cluster-pdb
+  namespace: voice-ferry
+  labels:
+    app: redis-cluster
+    platform: arm64
+spec:
+  minAvailable: 4  # Ensure majority is always available
+  selector:
+    matchLabels:
+      app: redis-cluster
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: etcd-pdb
+  namespace: voice-ferry
+  labels:
+    app: etcd
+    platform: arm64
+spec:
+  minAvailable: 2  # Ensure majority is always available
+  selector:
+    matchLabels:
+      app: etcd
+---
+# ===========================================
+# HORIZONTAL POD AUTOSCALER FOR ARM64
+# ===========================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: voice-ferry-hpa
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry
+    platform: arm64
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voice-ferry
+  minReplicas: 2
+  maxReplicas: 4  # Reduced for ARM clusters
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+---
+# ===========================================
+# RTPENGINE DEPLOYMENT FOR ARM64
+# ===========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtpengine
+  namespace: voice-ferry
+  labels:
+    component: rtpengine
+spec:
+  selector:
+    matchLabels:
+      component: rtpengine
+  template:
+    metadata:
+      name: rtpengine
+      labels:
+        component: rtpengine
+    spec:
+      # Here we make sure the pod starts on a single node
+      nodeSelector:
+        voip-role: media
+      hostNetwork: true
+      containers:
+        - name: rtpengine
+          image: 2bleere/rtpengine:latest
+          imagePullPolicy: Always
+          env:
+            # If PUBLIC_IP is undefined the container will guess the public IP
+            - name: PUBLIC_IP
+              value: "192.168.1.208"
+            #LOCATION_ADDR inherited from ROUTR Deployment, useless here but needed for container startup
+            - name: LOCATION_ADDR
+              value: "location:51902"
+            - name: BIND_HTTP_PORT
+              value: "5000"
+            - name: LOG_LEVEL
+              value: "8"
+            - name: PORT_MIN
+              value: "10000"
+            - name: PORT_MAX
+              value: "10500"
+            - name: BIND_NG_PORT
+              value: "22222"
+            - name: LOCAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          securityContext:
+            allowPrivilegeEscalation: true
+
