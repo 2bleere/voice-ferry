@@ -408,7 +408,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] **Automated Testing**: Redis integration testing and CI/CD pipeline improvements
 
 ### In Progress 🚧
-- [ ] WebRTC gateway support
 - [ ] Advanced load balancing algorithms
 - [ ] Call recording integration
 

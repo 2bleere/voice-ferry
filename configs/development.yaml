@@ -21,20 +21,15 @@ sip:
   auth:
     enabled: true
     realm: "sip-b2bua.local"
-    
-  # Transport configuration
-  transport:
-    udp:
-      enabled: true
-      port: 5060
-    tcp:
-      enabled: true
-      port: 5060
-    tls:
-      enabled: false
-      port: 5061
-      cert_file: ""
-      key_file: ""
+  
+  # Transport configuration  
+  transport: "UDP"  # UDP, TCP, TLS, WS, WSS
+  
+  # TLS configuration
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
 
 # gRPC server configuration
 grpc:
@@ -52,38 +47,6 @@ grpc:
   auth:
     enabled: false
     api_keys: []
-
-# WebRTC gateway configuration
-webrtc:
-  enabled: true
-  host: "0.0.0.0"
-  port: 8081
-  ws_path: "/ws"
-  
-  # ICE servers configuration
-  stun_servers:
-    - "stun:stun.l.google.com:19302"
-    - "stun:stun1.l.google.com:19302"
-    - "stun:stun2.l.google.com:19302"
-    
-  turn_servers: []
-    # Example TURN server configuration:
-    # - url: "turn:turn.example.com:3478"
-    #   username: "user"
-    #   password: "pass"
-  
-  # TLS configuration (disabled for development)
-  tls:
-    enabled: false
-    cert_file: ""
-    key_file: ""
-    
-  # Authentication (disabled for development)
-  auth:
-    enabled: false
-    jwt_secret: "dev-secret-key"
-    allowed_origins:
-      - "*"
 
 # Health check configuration
 health:
@@ -261,7 +224,6 @@ security:
 
 # Feature flags
 features:
-  webrtc_gateway: true
   call_recording: false
   presence: false
   messaging: false

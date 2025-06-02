@@ -19,7 +19,6 @@ import (
 	"github.com/2bleere/voice-ferry/pkg/redis"
 	"github.com/2bleere/voice-ferry/pkg/rtpengine"
 	"github.com/2bleere/voice-ferry/pkg/sip"
-	gateway "github.com/2bleere/voice-ferry/pkg/webrtc"
 	v1 "github.com/2bleere/voice-ferry/proto/gen/b2bua/v1"
 )
 
@@ -28,10 +27,8 @@ type Server struct {
 	cfg           *config.Config
 	sipServer     *sip.Server
 	grpcServer    *grpc.Server
-	webrtcGateway *gateway.Gateway
 	rtpEngine     *rtpengine.Client
 	httpServer    *http.Server // for health checks
-	webrtcServer  *http.Server // for WebRTC gateway
 	metricsServer *metrics.MetricsServer
 	etcdClient    *etcd.Client
 	redisClient   *redis.Client
@@ -113,52 +110,6 @@ func New(cfg *config.Config) (*Server, error) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	// Create WebRTC HTTP server if WebRTC gateway is enabled
-	if server.webrtcGateway != nil {
-		webrtcMux := http.NewServeMux()
-		webrtcMux.HandleFunc(cfg.WebRTC.WSPath, server.webrtcGateway.HandleWebSocket)
-
-		// Add CORS headers for WebRTC
-		corsHandler := func(h http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				origin := r.Header.Get("Origin")
-				if cfg.WebRTC.Auth.Enabled {
-					// Check allowed origins
-					allowed := false
-					for _, allowedOrigin := range cfg.WebRTC.Auth.Origins {
-						if allowedOrigin == "*" || allowedOrigin == origin {
-							allowed = true
-							break
-						}
-					}
-					if !allowed {
-						http.Error(w, "Origin not allowed", http.StatusForbidden)
-						return
-					}
-				}
-
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-				if r.Method == "OPTIONS" {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-
-				h.ServeHTTP(w, r)
-			})
-		}
-
-		server.webrtcServer = &http.Server{
-			Addr:         fmt.Sprintf("%s:%d", cfg.WebRTC.Host, cfg.WebRTC.Port),
-			Handler:      corsHandler(webrtcMux),
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
-		}
-	}
-
 	// Create etcd client if enabled
 	if cfg.Etcd.Enabled {
 		server.etcdClient, err = etcd.NewClient(&cfg.Etcd)
@@ -226,30 +177,6 @@ func New(cfg *config.Config) (*Server, error) {
 
 		// Enable reflection for debugging
 		reflection.Register(server.grpcServer)
-	}
-
-	// Create WebRTC gateway if enabled (after Redis client is created)
-	if cfg.WebRTC.Enabled {
-		// Create session manager for WebRTC gateway
-		sessionMgr := sip.NewSessionManager(
-			sipServer.GetDialogManager(),
-			server.redisClient,
-			rtpEngine,
-			logger.With("component", "session-manager"),
-		)
-
-		server.webrtcGateway, err = gateway.NewGateway(
-			&cfg.WebRTC,
-			sipServer,
-			sessionMgr,
-			logger.With("component", "webrtc-gateway"),
-		)
-		if err != nil {
-			logger.Warn("Failed to create WebRTC gateway", "error", err)
-			server.webrtcGateway = nil
-		} else {
-			logger.Info("WebRTC gateway initialized", "host", cfg.WebRTC.Host, "port", cfg.WebRTC.Port)
-		}
 	}
 
 	// Register component health checkers
@@ -362,45 +289,6 @@ func (s *Server) StartMetrics(ctx context.Context) error {
 	}()
 
 	return nil
-}
-
-// StartWebRTC starts the WebRTC gateway server
-func (s *Server) StartWebRTC(ctx context.Context) error {
-	if s.webrtcServer == nil {
-		s.logger.Info("WebRTC gateway disabled")
-		return nil
-	}
-
-	s.logger.Info("Starting WebRTC gateway server", "addr", s.webrtcServer.Addr)
-
-	// Update metrics
-	if s.metricsServer != nil {
-		s.metricsServer.GetCollector().UpdateComponentHealth("webrtc_gateway", true)
-	}
-
-	// Start server in a goroutine
-	go func() {
-		if err := s.webrtcServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("WebRTC gateway server error", "error", err)
-		}
-	}()
-
-	// Wait for context cancellation
-	<-ctx.Done()
-
-	// Graceful shutdown
-	s.logger.Info("Shutting down WebRTC gateway server")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Shutdown WebRTC gateway gracefully
-	if s.webrtcGateway != nil {
-		if err := s.webrtcGateway.Shutdown(shutdownCtx); err != nil {
-			s.logger.Error("Error shutting down WebRTC gateway", "error", err)
-		}
-	}
-
-	return s.webrtcServer.Shutdown(shutdownCtx)
 }
 
 // Shutdown gracefully shuts down all server components

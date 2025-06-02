@@ -13,7 +13,6 @@ type Config struct {
 	Debug     bool            `yaml:"debug"`
 	SIP       SIPConfig       `yaml:"sip"`
 	GRPC      GRPCConfig      `yaml:"grpc"`
-	WebRTC    WebRTCConfig    `yaml:"webrtc"`
 	Health    HealthConfig    `yaml:"health"`
 	Metrics   MetricsConfig   `yaml:"metrics"`
 	Logging   LoggingConfig   `yaml:"logging"`
@@ -46,32 +45,6 @@ type GRPCConfig struct {
 type GRPCAuthConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	JWTSecret string `yaml:"jwt_secret"`
-}
-
-// WebRTCConfig contains WebRTC gateway configuration
-type WebRTCConfig struct {
-	Enabled     bool               `yaml:"enabled"`
-	Host        string             `yaml:"host"`
-	Port        int                `yaml:"port"`
-	WSPath      string             `yaml:"ws_path"`
-	STUNServers []string           `yaml:"stun_servers"`
-	TURNServers []TURNServerConfig `yaml:"turn_servers"`
-	TLS         TLSConfig          `yaml:"tls"`
-	Auth        WebRTCAuthConfig   `yaml:"auth"`
-}
-
-// TURNServerConfig represents a TURN server configuration
-type TURNServerConfig struct {
-	URL      string `yaml:"url"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-// WebRTCAuthConfig contains WebRTC authentication configuration
-type WebRTCAuthConfig struct {
-	Enabled   bool     `yaml:"enabled"`
-	JWTSecret string   `yaml:"jwt_secret"`
-	Origins   []string `yaml:"allowed_origins"`
 }
 
 // HealthConfig contains health check configuration
@@ -259,21 +232,6 @@ func defaultConfig() *Config {
 			Port: 50051,
 			Auth: GRPCAuthConfig{
 				Enabled: false,
-			},
-		},
-		WebRTC: WebRTCConfig{
-			Enabled: false,
-			Host:    "0.0.0.0",
-			Port:    8081,
-			WSPath:  "/ws",
-			STUNServers: []string{
-				"stun:stun.l.google.com:19302",
-				"stun:stun1.l.google.com:19302",
-			},
-			TURNServers: []TURNServerConfig{},
-			Auth: WebRTCAuthConfig{
-				Enabled: false,
-				Origins: []string{"*"},
 			},
 		},
 		Health: HealthConfig{

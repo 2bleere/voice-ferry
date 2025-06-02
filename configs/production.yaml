@@ -271,24 +271,6 @@ performance:
   # Memory settings
   gc_target_percentage: 75
 
-# WebRTC Gateway (optional)
-webrtc:
-  enabled: false
-  host: "0.0.0.0"
-  port: 8443
-  
-  # TLS is required for WebRTC
-  tls:
-    cert_file: "/etc/ssl/certs/voice-ferry.crt"
-    key_file: "/etc/ssl/private/voice-ferry.key"
-  
-  # STUN/TURN servers
-  ice_servers:
-    - urls: "stun:stun.l.google.com:19302"
-    # - urls: "turn:turn.example.com:3478"
-    #   username: "turnuser"
-    #   credential: "turnpass"
-
 # Monitoring and Alerting
 monitoring:
   # Health checks

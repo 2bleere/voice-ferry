@@ -67,9 +67,6 @@ func main() {
 	log.Printf("Starting SIP B2BUA v%s (built: %s, commit: %s)", version, buildTime, commitSHA)
 	//log.Printf("Starting SIP B2BUA v1.0.0")
 	log.Printf("SIP Port: %d, gRPC Port: %d", cfg.SIP.Port, cfg.GRPC.Port)
-	if cfg.WebRTC.Enabled {
-		log.Printf("WebRTC Gateway: enabled on port %d", cfg.WebRTC.Port)
-	}
 
 	// Create server instance
 	srv, err := server.New(cfg)
@@ -118,17 +115,6 @@ func main() {
 			log.Printf("Metrics server error: %v", err)
 		}
 	}()
-
-	// Start WebRTC server if enabled
-	if cfg.WebRTC.Enabled {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := srv.StartWebRTC(ctx); err != nil {
-				log.Printf("WebRTC server error: %v", err)
-			}
-		}()
-	}
 
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
