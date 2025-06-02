@@ -35,10 +35,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
               -X github.com/2bleere/voice-ferry/pkg/version.Version=${VERSION} \
               -X github.com/2bleere/voice-ferry/pkg/version.BuildTime=${BUILD_TIME} \
               -X github.com/2bleere/voice-ferry/pkg/version.GitCommit=${GIT_COMMIT}" \
-    -o b2bua ./cmd/b2bua
+    -o b2bua-server ./cmd/b2bua
 
 # Compress binary (optional, saves ~30% space)
-RUN upx --lzma b2bua
+RUN upx --lzma b2bua-server
 
 # Final production stage
 FROM scratch
@@ -50,7 +50,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 # Copy binary from builder stage
-COPY --from=builder /app/b2bua /usr/local/bin/b2bua
+COPY --from=builder /app/b2bua-server /usr/local/bin/b2bua-server
 
 # Copy default configuration
 COPY --from=builder /app/configs/production.yaml /etc/voice-ferry/config.yaml
@@ -73,20 +73,13 @@ EXPOSE 5060/udp 5060/tcp 5061/tcp 50051/tcp 8080/tcp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD ["/usr/local/bin/b2bua", "-health-check"]
+  CMD ["/usr/local/bin/b2bua-server", "-health-check"]
 
 # Use non-root user (defined at runtime)
 USER 1001:1001
 
 # Set entrypoint
-ENTRYPOINT ["/usr/local/bin/b2bua"]
+ENTRYPOINT ["/usr/local/bin/b2bua-server"]
 
 # Default command
 CMD ["-config", "/etc/voice-ferry/config.yaml"]
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz/live || exit 1
-
-# Set entrypoint
-ENTRYPOINT ["./b2bua"]
-
-# Default command
-CMD ["-config", "/etc/b2bua/config.yaml"]

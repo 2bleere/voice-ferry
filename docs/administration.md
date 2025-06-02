@@ -87,13 +87,13 @@ sudo systemctl enable voice-ferry
 
 ```bash
 # Basic usage
-./b2bua [options]
+./b2bua-server [options]
 
 # Available options:
-./b2bua -h
-Usage of ./b2bua:
+./b2bua-server -h
+Usage of ./b2bua-server:
   -config string
-        Path to configuration file (default "/etc/b2bua/config.yaml")
+        Path to configuration file (default "/etc/voice-ferry/config.yaml")
   -debug
         Enable debug logging
   -grpc-port int
@@ -110,10 +110,10 @@ Usage of ./b2bua:
 
 ```bash
 # Validate configuration file
-./b2bua -config /etc/b2bua/config.yaml -validate
+./b2bua-server -config /etc/voice-ferry/config.yaml -validate
 
 # Test configuration without starting services
-./b2bua -config /etc/b2bua/config.yaml -test
+./b2bua-server -config /etc/voice-ferry/config.yaml -test
 ```
 
 #### Environment Variable Override
@@ -125,7 +125,7 @@ export SIP_PORT="5060"
 export DEBUG="true"
 export JWT_SIGNING_KEY="your-secret-key"
 
-./b2bua -config /etc/b2bua/config.yaml
+./b2bua-server -config /etc/voice-ferry/config.yaml
 ```
 
 ### Service Management (systemd)
@@ -165,7 +165,7 @@ docker logs voice-ferry --since=1h
 
 # Execute commands in container
 docker exec -it voice-ferry /bin/sh
-docker exec voice-ferry ./b2bua -version
+docker exec voice-ferry /usr/local/bin/b2bua-server -version
 
 # Container resource usage
 docker stats voice-ferry
@@ -333,14 +333,14 @@ grpcurl -plaintext localhost:50051 b2bua.v1.StatusService/GetMetrics
 
 ```bash
 # Check configuration syntax
-./b2bua -config /etc/b2bua/config.yaml -validate
+./b2bua-server -config /etc/voice-ferry/config.yaml -validate
 
 # Check port availability
 netstat -tlnp | grep :5060
 lsof -i :5060
 
 # Check file permissions
-ls -la /etc/b2bua/config.yaml
+ls -la /etc/voice-ferry/config.yaml
 ls -la /var/log/voice-ferry/
 
 # Check systemd status

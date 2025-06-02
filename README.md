@@ -1,4 +1,3 @@
-
 <div align="center">
   <img src="assets/Logo.png" alt="Voice Ferry Logo" width="200" height="auto" style="max-width: 100%; height: auto;">
   
@@ -341,7 +340,7 @@ Structured JSON logging with configurable levels:
 
 ```bash
 # Build binary
-go build -o bin/b2bua cmd/b2bua/main.go
+go build -o build/b2bua-server cmd/b2bua/main.go
 
 # Build Docker image
 docker build -f deployments/docker/Dockerfile -t sip-b2bua:latest .
@@ -354,7 +353,7 @@ go test ./...
 ```
 
 For comprehensive container registry management, multi-platform builds, and deployment strategies, see the [Container Registry Documentation](docs/container-registry.md).
-```
+````markdown
 
 ### Contributing
 

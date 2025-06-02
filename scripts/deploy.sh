@@ -225,11 +225,11 @@ deploy_binary() {
     chown voice-ferry:voice-ferry /var/lib/voice-ferry /var/log/voice-ferry
     
     # Copy binary
-    if [[ ! -f "bin/b2bua" ]]; then
+    if [[ ! -f "build/b2bua-server" ]]; then
         error "Binary not found. Run 'make build' first."
     fi
     
-    cp bin/b2bua /usr/local/bin/voice-ferry
+    cp build/b2bua-server /usr/local/bin/voice-ferry
     chmod +x /usr/local/bin/voice-ferry
     
     # Copy configuration
