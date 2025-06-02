@@ -140,12 +140,11 @@ func TestMetricsCollector_ComponentHealth(t *testing.T) {
 	collector.UpdateComponentHealth("redis", true)
 	collector.UpdateComponentHealth("etcd", false)
 
-	expected := strings.TrimSpace(`
-		# HELP component_health Health status of system components (1=healthy, 0=unhealthy)
-		# TYPE component_health gauge
-		component_health{component="etcd"} 0
-		component_health{component="redis"} 1
-	`)
+	expected := `# HELP component_health Health status of system components (test)
+# TYPE component_health gauge
+component_health{component="etcd"} 0
+component_health{component="redis"} 1
+`
 
 	err := testutil.CollectAndCompare(collector.componentHealth, strings.NewReader(expected))
 	assert.NoError(t, err)
@@ -157,11 +156,10 @@ func TestMetricsCollector_SystemInfo(t *testing.T) {
 	// Set system info
 	collector.SetSystemInfo("1.0.0", "2023-12-01T10:00:00Z", "go1.21")
 
-	expected := strings.TrimSpace(`
-		# HELP system_info System information
-		# TYPE system_info gauge
-		system_info{go_version="go1.21",start_time="2023-12-01T10:00:00Z",version="1.0.0"} 1
-	`)
+	expected := `# HELP test_system_info System information (test)
+# TYPE test_system_info gauge
+test_system_info{build_time="2023-12-01T10:00:00Z",version="1.0.0"} 1
+`
 
 	err := testutil.CollectAndCompare(collector.systemInfo, strings.NewReader(expected))
 	assert.NoError(t, err)

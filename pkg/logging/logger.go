@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/2bleere/voice-ferry/pkg/config"
@@ -65,7 +66,7 @@ func NewLogger(cfg config.LoggingConfig, component string) (*Logger, error) {
 	case LevelError:
 		level = slog.LevelError
 	default:
-		level = slog.LevelInfo
+		return nil, fmt.Errorf("invalid log level: %s", cfg.Level)
 	}
 
 	// Create handler options
@@ -108,7 +109,7 @@ func NewLogger(cfg config.LoggingConfig, component string) (*Logger, error) {
 	case FormatText:
 		handler = slog.NewTextHandler(writer, opts)
 	default:
-		handler = slog.NewJSONHandler(writer, opts)
+		return nil, fmt.Errorf("invalid log format: %s", cfg.Format)
 	}
 
 	// Create base logger
@@ -352,6 +353,7 @@ func ContextWithRequestID(ctx context.Context, requestID string) context.Context
 type LoggerManager struct {
 	loggers map[string]*Logger
 	config  config.LoggingConfig
+	mu      sync.RWMutex
 }
 
 // NewLoggerManager creates a new logger manager
@@ -364,6 +366,19 @@ func NewLoggerManager(cfg config.LoggingConfig) *LoggerManager {
 
 // GetLogger returns a logger for a specific component
 func (lm *LoggerManager) GetLogger(component string) (*Logger, error) {
+	// Try reading with read lock first
+	lm.mu.RLock()
+	if logger, exists := lm.loggers[component]; exists {
+		lm.mu.RUnlock()
+		return logger, nil
+	}
+	lm.mu.RUnlock()
+
+	// Need to create a new logger, acquire write lock
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
+	// Double-check to avoid race condition
 	if logger, exists := lm.loggers[component]; exists {
 		return logger, nil
 	}
