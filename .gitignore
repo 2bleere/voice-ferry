@@ -111,6 +111,7 @@ GIT_SETUP_GUIDE.md
 CI_CD_SETUP_GUIDE.md
 scripts/setup-git-repo.sh
 lint-results.txt
+picluster/
 
 # Exclude only the binary, not the helm chart directory
 !/helm/voice-ferry/
