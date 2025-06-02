@@ -156,6 +156,9 @@ jobs:
         go mod download
         go mod verify
 
+    - name: Go mod tidy
+      run: go mod tidy
+
     - name: Run unit tests
       run: |
         go test -race -coverprofile=coverage.out -covermode=atomic ./pkg/...
