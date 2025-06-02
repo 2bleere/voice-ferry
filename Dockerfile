@@ -62,5 +62,5 @@ EXPOSE 5060/udp 8080 9090 50051
 ENV LOG_LEVEL=info
 
 # Run as root for now to avoid all permission issues
-# Command to run with high port for SIP and correct config
-ENTRYPOINT ["./b2bua-server", "--sip-port=5060", "--config=/app/configs/development-fixed.yaml"]
+# Command to run with production config path by default
+ENTRYPOINT ["./b2bua-server", "--config=/etc/voice-ferry/config.yaml"]

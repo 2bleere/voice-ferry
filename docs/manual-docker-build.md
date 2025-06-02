@@ -879,14 +879,17 @@ docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" voice-ferry
 ### Test the Built Image
 
 ```bash
-# Quick test run
+# Quick test run - check binary name and help
 docker run --rm -p 5060:5060/udp voice-ferry:latest --help
+
+# Note: The binary is built as 'b2bua-server' not 'b2bua'
+docker run --rm voice-ferry:latest ./b2bua-server --help
 
 # Full test with configuration
 docker run --rm \
   -p 5060:5060/udp \
   -p 8080:8080 \
-  -v $(pwd)/configs/development.yaml:/app/configs/config.yaml:ro \
+  -v $(pwd)/configs/development.yaml:/etc/voice-ferry/config.yaml:ro \
   voice-ferry:latest
 ```
 
