@@ -8,7 +8,7 @@ on:
     branches: [ main, develop ]
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24.3'
   NODE_VERSION: '20'
   PYTHON_VERSION: '3.12'
   REGISTRY: ghcr.io
@@ -65,6 +65,18 @@ jobs:
 
     - name: Go module tidy
       run: go mod tidy
+
+    - name: Debug Go environment
+      run: |
+        echo "Go version: $(go version)"
+        echo "Go env:"
+        go env
+        echo "Go mod status:"
+        go mod verify
+        echo "Checking specific imports:"
+        go list -m github.com/pion/webrtc/v3
+        go list -m gopkg.in/yaml.v3
+        go list -m github.com/stretchr/testify
 
     - name: Go format check
       run: |
@@ -158,6 +170,18 @@ jobs:
 
     - name: Go mod tidy
       run: go mod tidy
+
+    - name: Debug Go environment
+      run: |
+        echo "Go version: $(go version)"
+        echo "Go env:"
+        go env
+        echo "Go mod status:"
+        go mod verify
+        echo "Checking specific imports:"
+        go list -m github.com/pion/webrtc/v3
+        go list -m gopkg.in/yaml.v3
+        go list -m github.com/stretchr/testify
 
     - name: Run unit tests
       run: |
