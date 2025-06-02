@@ -19,7 +19,7 @@ import (
 	"github.com/2bleere/voice-ferry/pkg/redis"
 	"github.com/2bleere/voice-ferry/pkg/rtpengine"
 	"github.com/2bleere/voice-ferry/pkg/sip"
-	"github.com/2bleere/voice-ferry/pkg/webrtc"
+	gateway "github.com/2bleere/voice-ferry/pkg/webrtc"
 	v1 "github.com/2bleere/voice-ferry/proto/gen/b2bua/v1"
 )
 
@@ -28,7 +28,7 @@ type Server struct {
 	cfg           *config.Config
 	sipServer     *sip.Server
 	grpcServer    *grpc.Server
-	webrtcGateway *webrtc.Gateway
+	webrtcGateway *gateway.Gateway
 	rtpEngine     *rtpengine.Client
 	httpServer    *http.Server // for health checks
 	webrtcServer  *http.Server // for WebRTC gateway
@@ -238,7 +238,7 @@ func New(cfg *config.Config) (*Server, error) {
 			logger.With("component", "session-manager"),
 		)
 
-		server.webrtcGateway, err = webrtc.NewGateway(
+		server.webrtcGateway, err = gateway.NewGateway(
 			&cfg.WebRTC,
 			sipServer,
 			sessionMgr,

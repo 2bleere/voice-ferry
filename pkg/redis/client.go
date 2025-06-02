@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/2bleere/voice-ferry/pkg/config"
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const (
