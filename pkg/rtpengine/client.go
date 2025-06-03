@@ -8,6 +8,8 @@ import (
 	"net"
 	"sync"
 	"time"
+	"crypto/rand"
+	"encoding/hex"
 
 	"github.com/2bleere/voice-ferry/pkg/config"
 )
@@ -22,14 +24,13 @@ type Client struct {
 
 // Command represents an rtpengine ng protocol command
 type Command struct {
-	Command string                 `json:"command"`
-	CallID  string                 `json:"call-id"`
-	FromTag string                 `json:"from-tag,omitempty"`
-	ToTag   string                 `json:"to-tag,omitempty"`
-	SDP     string                 `json:"sdp,omitempty"`
-	Flags   []string               `json:"flags,omitempty"`
-	Replace []string               `json:"replace,omitempty"`
-	Data    map[string]interface{} `json:",inline"`
+	Command string   `json:"command"`
+	CallID  string   `json:"call-id"`
+	FromTag string   `json:"from-tag,omitempty"`
+	ToTag   string   `json:"to-tag,omitempty"`
+	SDP     string   `json:"sdp,omitempty"`
+	Flags   []string `json:"flags,omitempty"`
+	Replace []string `json:"replace,omitempty"`
 }
 
 // Response represents an rtpengine ng protocol response
@@ -67,6 +68,13 @@ func NewClient(cfg config.RTPEngineConfig) (*Client, error) {
 	}
 
 	return client, nil
+}
+
+// generateCookie generates a unique cookie for RTPEngine commands
+func generateCookie() string {
+	bytes := make([]byte, 8)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
 }
 
 // initConnection initializes a UDP connection to an rtpengine instance
@@ -188,8 +196,12 @@ func (c *Client) sendCommandToInstance(ctx context.Context, cmd Command, instanc
 		return nil, fmt.Errorf("failed to marshal command: %w", err)
 	}
 
-	// Add bencode wrapper (simplified - in production, use proper bencode library)
-	bencoded := fmt.Sprintf("d7:command%d:%se", len(cmdBytes), cmdBytes)
+	// Generate cookie for this command
+	cookie := generateCookie()
+
+	// Create proper bencode format with cookie at top level ONLY
+	// Format: d6:cookie<len>:<cookie>7:command<len>:<json>e
+	bencoded := fmt.Sprintf("d6:cookie%d:%s7:command%d:%se", len(cookie), cookie, len(cmdBytes), cmdBytes)
 
 	// Set deadline for the operation
 	deadline, ok := ctx.Deadline()
