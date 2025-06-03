@@ -731,6 +731,163 @@ openssl s_client -connect voice-ferry:50051 -servername voice-ferry
 kubectl get secret voice-ferry-tls -n voice-ferry -o yaml
 ```
 
+### RTPEngine Connectivity Issues
+
+#### Problem: "No healthy RTPEngine instances available"
+
+**Symptoms:**
+- Voice Ferry pods fail health checks
+- Logs show "connection refused" to RTPEngine
+- Pods remain in "Not Ready" state
+
+**Common Root Causes and Solutions:**
+
+##### 1. UDP Connection Reuse in Kubernetes
+
+**Problem**: Kubernetes UDP load balancing can cause connection reuse issues.
+
+**Solution**: Use fresh UDP connections for health checks.
+
+```go
+// In pkg/rtpengine/client.go - Use dedicated health check method
+func (c *Client) IsInstanceHealthyWithFreshConnection(instanceID string) bool {
+    // Create fresh UDP connection for each health check
+    conn, err := net.Dial("udp", fmt.Sprintf("%s:%d", instance.Host, instance.Port))
+    if err != nil {
+        return false
+    }
+    defer conn.Close()
+    // ... perform health check
+}
+```
+
+##### 2. Network Policy Blocking Egress Traffic
+
+**Problem**: NetworkPolicy rules blocking traffic to RTPEngine port 22222.
+
+**Diagnosis**:
+```bash
+# Check network policies
+kubectl get networkpolicy -n voice-ferry
+
+# Test connectivity from pod
+kubectl exec -n voice-ferry <pod-name> -- nc -u <rtpengine-ip> 22222
+```
+
+**Solution**: Update NetworkPolicy to allow egress to RTPEngine:
+
+```yaml
+# Add to NetworkPolicy egress rules
+egress:
+- to: []
+  ports:
+  - protocol: UDP
+    port: 22222      # RTPEngine NG protocol
+  - protocol: UDP
+    port: 5060       # SIP
+  - protocol: TCP
+    port: 5060       # SIP
+```
+
+##### 3. Incorrect Health Check Endpoints
+
+**Problem**: Kubernetes probes trying wrong endpoints (`/healthz/*` vs `/health`).
+
+**Diagnosis**:
+```bash
+# Test actual health endpoint
+kubectl exec -n voice-ferry <pod> -- curl -s http://localhost:8080/health
+
+# Check probe configuration
+kubectl describe pod <pod-name> -n voice-ferry
+```
+
+**Solution**: Update deployment probe endpoints:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health    # Not /healthz/live
+    port: health
+readinessProbe:
+  httpGet:
+    path: /health    # Not /healthz/ready
+    port: health
+startupProbe:
+  httpGet:
+    path: /health    # Not /healthz/startup
+    port: health
+```
+
+##### 4. Service Name vs Direct IP Issues
+
+**Problem**: DNS resolution issues with service names in complex networking.
+
+**Diagnosis**:
+```bash
+# Test DNS resolution
+kubectl exec -n voice-ferry <pod> -- nslookup rtpengine
+
+# Test direct IP
+kubectl exec -n voice-ferry <pod> -- nc -u 192.168.1.208 22222
+```
+
+**Solution**: Use direct IP in configuration:
+
+```yaml
+# In ConfigMap
+rtpengine:
+  instances:
+    - id: "rtpengine-1"
+      host: "192.168.1.208"  # Direct IP instead of "rtpengine"
+      port: 22222
+```
+
+#### Debugging Commands
+
+```bash
+# Check pod readiness
+kubectl get pods -n voice-ferry -l app=voice-ferry
+
+# View real-time RTPEngine health check logs
+kubectl logs -f -n voice-ferry -l app=voice-ferry | grep "RTPEngine ping"
+
+# Test health endpoint manually
+kubectl exec -n voice-ferry <pod> -- curl -s http://localhost:8080/health
+
+# Test RTPEngine connectivity
+kubectl exec -n voice-ferry <pod> -- nc -u <rtpengine-ip> 22222
+
+# Check network policy rules
+kubectl describe networkpolicy voice-ferry-network-policy -n voice-ferry
+
+# Verify configuration
+kubectl get configmap voice-ferry-config -n voice-ferry -o yaml
+```
+
+#### Expected Success Indicators
+
+When properly configured, you should see:
+
+```bash
+# Successful health check logs
+DEBUG: RTPEngine ping for instance rtpengine-1: result=ok, healthy=true
+
+# Ready pods
+NAME                           READY   STATUS    RESTARTS   AGE
+voice-ferry-6c586b5c59-4gsfq   1/1     Running   0          2m
+voice-ferry-6c586b5c59-xrps6   1/1     Running   0          2m
+
+# Healthy endpoint response
+{
+  "status":"healthy",
+  "components":{
+    "rtpengine":{"status":"healthy","success_rate":1},
+    "sip_server":{"status":"healthy","success_rate":1}
+  }
+}
+```
+
 ### Debug Mode
 
 Enable debug logging:

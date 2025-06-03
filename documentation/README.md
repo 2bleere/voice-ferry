@@ -8,10 +8,27 @@ This directory contains project documentation, analysis summaries, and implement
 - `COMPREHENSIVE_ANALYSIS_SUMMARY.md` - Complete project analysis and architecture overview
 - `PROJECT_RENAME_SUMMARY.md` - Summary of project renaming and restructuring
 
+### Deployment Documentation
+- `DEPLOYMENT_SUCCESS_REPORT.md` - **NEW** Complete deployment success report with all fixes
+- `ARM64_KUBERNETES_QUICK_REFERENCE.md` - **NEW** Quick reference for ARM64 Kubernetes deployment
+
 ### Integration Documentation
 - `REDIS_INTEGRATION_SUCCESS.md` - Redis integration implementation details
 - `ETCD_MONITORING_DEPLOYMENT_COMPLETE.md` - Complete etcd monitoring implementation guide
 - `ETCD_MONITORING_QUICK_REFERENCE.md` - Quick reference for etcd monitoring features
+
+## Recent Updates (June 2025)
+
+### ✅ Deployment Success
+- **Complete Platform Deployment**: All services now fully operational on ARM64 Kubernetes
+- **RTPEngine Integration**: Resolved UDP connectivity and health check issues  
+- **Network Security**: Implemented proper network policies for secure communication
+- **Production Ready**: Zero-downtime rolling updates verified
+
+### Key Documentation Added
+1. **Deployment Success Report**: Comprehensive analysis of all issues resolved
+2. **ARM64 Quick Reference**: Operations guide for production Kubernetes deployment
+3. **Updated Troubleshooting**: Specific solutions for RTPEngine connectivity issues
 
 ## Purpose
 

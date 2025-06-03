@@ -190,18 +190,26 @@ func (c *Client) sendCommandToInstance(ctx context.Context, cmd Command, instanc
 		return nil, fmt.Errorf("no connection to rtpengine instance %s", instanceID)
 	}
 
-	// Encode command as JSON
-	cmdBytes, err := json.Marshal(cmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal command: %w", err)
-	}
-
 	// Generate cookie for this command
 	cookie := generateCookie()
 
-	// Create proper bencode format with cookie at top level ONLY
-	// Format: d6:cookie<len>:<cookie>7:command<len>:<json>e
-	bencoded := fmt.Sprintf("d6:cookie%d:%s7:command%d:%se", len(cookie), cookie, len(cmdBytes), cmdBytes)
+	// For simple commands like "ping", send as raw string
+	// For complex commands, encode as JSON
+	var commandStr string
+	var err error
+	if cmd.Command == "ping" {
+		commandStr = "ping"
+	} else {
+		cmdBytes, err := json.Marshal(cmd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal command: %w", err)
+		}
+		commandStr = string(cmdBytes)
+	}
+
+	// Create proper RTPEngine NG format: cookie + space + bencode dictionary
+	// Format: cookie d7:command<len>:<command>e
+	bencoded := fmt.Sprintf("%s d7:command%d:%se", cookie, len(commandStr), commandStr)
 
 	// Set deadline for the operation
 	deadline, ok := ctx.Deadline()
@@ -223,29 +231,58 @@ func (c *Client) sendCommandToInstance(ctx context.Context, cmd Command, instanc
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Parse bencode response (simplified)
+	// Parse RTPEngine response format: cookie d6:result<len>:<result>e
 	responseData := buffer[:n]
-
-	// Extract JSON from bencode (this is a simplified implementation)
-	// In production, use a proper bencode library
-	jsonStart := bytes.Index(responseData, []byte("{"))
-	if jsonStart == -1 {
-		return nil, fmt.Errorf("invalid response format")
+	
+	// Find the space separator
+	spaceIndex := bytes.Index(responseData, []byte(" "))
+	if spaceIndex == -1 {
+		return nil, fmt.Errorf("invalid response format: no space separator")
+	}
+	
+	// Extract the bencode part after the space
+	bencodeData := responseData[spaceIndex+1:]
+	
+	// For simple responses like "pong", extract directly
+	// Look for result field in bencode: d6:result<len>:<value>e
+	resultStart := bytes.Index(bencodeData, []byte("result"))
+	if resultStart == -1 {
+		return nil, fmt.Errorf("no result field in response")
+	}
+	
+	// Find the length after "result"
+	lengthStart := resultStart + 6 // len("result")
+	colonIndex := bytes.Index(bencodeData[lengthStart:], []byte(":"))
+	if colonIndex == -1 {
+		return nil, fmt.Errorf("invalid result format")
+	}
+	
+	// Parse length
+	lengthStr := string(bencodeData[lengthStart : lengthStart+colonIndex])
+	var resultLength int
+	if _, err := fmt.Sscanf(lengthStr, "%d", &resultLength); err != nil {
+		return nil, fmt.Errorf("invalid result length: %w", err)
+	}
+	
+	// Extract result value
+	valueStart := lengthStart + colonIndex + 1
+	if valueStart+resultLength > len(bencodeData) {
+		return nil, fmt.Errorf("result value exceeds data length")
+	}
+	
+	resultValue := string(bencodeData[valueStart : valueStart+resultLength])
+	
+	// Create response
+	response := Response{
+		Result: resultValue,
+	}
+	
+	// For ping command, "pong" result means success
+	if cmd.Command == "ping" && resultValue == "pong" {
+		response.Result = "ok"
 	}
 
-	jsonEnd := bytes.LastIndex(responseData, []byte("}"))
-	if jsonEnd == -1 {
-		return nil, fmt.Errorf("invalid response format")
-	}
-
-	jsonData := responseData[jsonStart : jsonEnd+1]
-
-	var response Response
-	if err := json.Unmarshal(jsonData, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	if response.Result != "ok" {
+	if response.Result != "ok" && response.Result != "pong" {
 		return &response, fmt.Errorf("rtpengine error: %s", response.ErrorReason)
 	}
 
@@ -274,6 +311,120 @@ func (c *Client) GetInstances() []config.RTPEngineInstance {
 
 // IsInstanceHealthy checks if an rtpengine instance is healthy
 func (c *Client) IsInstanceHealthy(ctx context.Context, instanceID string) bool {
-	response, err := c.Ping(ctx, instanceID)
-	return err == nil && response.Result == "ok"
+	// Use a fresh UDP connection for health checks to avoid connection reuse issues in Kubernetes
+	response, err := c.pingWithFreshConnection(ctx, instanceID)
+	if err != nil {
+		// Add debug logging to see what's going wrong
+		fmt.Printf("DEBUG: RTPEngine ping failed for instance %s: %v\n", instanceID, err)
+		return false
+	}
+	
+	healthy := response.Result == "ok"
+	fmt.Printf("DEBUG: RTPEngine ping for instance %s: result=%s, healthy=%v\n", instanceID, response.Result, healthy)
+	return healthy
+}
+
+// pingWithFreshConnection creates a fresh UDP connection for each ping to avoid connection reuse issues
+func (c *Client) pingWithFreshConnection(ctx context.Context, instanceID string) (*Response, error) {
+	// Find the instance configuration
+	var instance *config.RTPEngineInstance
+	for _, inst := range c.instances {
+		if inst.ID == instanceID {
+			instance = &inst
+			break
+		}
+	}
+	
+	if instance == nil {
+		return nil, fmt.Errorf("instance %s not found", instanceID)
+	}
+	
+	// Create fresh UDP connection
+	addr := fmt.Sprintf("%s:%d", instance.Host, instance.Port)
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve UDP address %s: %w", addr, err)
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial UDP %s: %w", addr, err)
+	}
+	defer conn.Close()
+
+	// Generate cookie for this command
+	cookie := generateCookie()
+
+	// Create proper RTPEngine NG format for ping: cookie d7:command4:pinge
+	bencoded := fmt.Sprintf("%s d7:command4:pinge", cookie)
+
+	// Set deadline for the operation
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(c.timeout)
+	}
+	conn.SetDeadline(deadline)
+
+	// Send command
+	_, err = conn.Write([]byte(bencoded))
+	if err != nil {
+		return nil, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	// Read response
+	buffer := make([]byte, 4096)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Parse RTPEngine response format: cookie d6:result<len>:<result>e
+	responseData := buffer[:n]
+	
+	// Find the space separator
+	spaceIndex := bytes.Index(responseData, []byte(" "))
+	if spaceIndex == -1 {
+		return nil, fmt.Errorf("invalid response format: no space separator")
+	}
+	
+	// Extract the bencode part after the space
+	bencodeData := responseData[spaceIndex+1:]
+	
+	// For simple responses like "pong", extract directly
+	// Look for result field in bencode: d6:result<len>:<value>e
+	resultStart := bytes.Index(bencodeData, []byte("result"))
+	if resultStart == -1 {
+		return nil, fmt.Errorf("no result field in response")
+	}
+	
+	// Find the length after "result"
+	lengthStart := resultStart + 6 // len("result")
+	colonIndex := bytes.Index(bencodeData[lengthStart:], []byte(":"))
+	if colonIndex == -1 {
+		return nil, fmt.Errorf("invalid result format")
+	}
+	
+	// Parse length
+	lengthStr := string(bencodeData[lengthStart : lengthStart+colonIndex])
+	var resultLength int
+	if _, err := fmt.Sscanf(lengthStr, "%d", &resultLength); err != nil {
+		return nil, fmt.Errorf("invalid result length: %w", err)
+	}
+	
+	// Extract result value
+	valueStart := lengthStart + colonIndex + 1
+	if valueStart+resultLength > len(bencodeData) {
+		return nil, fmt.Errorf("result value exceeds data length")
+	}
+	
+	result := string(bencodeData[valueStart : valueStart+resultLength])
+	
+	// Convert "pong" to "ok" for consistency with Voice Ferry expectations  
+	if result == "pong" {
+		result = "ok"
+	}
+	
+	return &Response{
+		Result: result,
+	}, nil
 }

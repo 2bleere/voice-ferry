@@ -369,7 +369,7 @@ data:
     rtpengine:
       instances:
         - id: "rtpengine-1"
-          host: "192.168.1.208"
+          host: "rtpengine"
           port: 22222
           weight: 100
           enabled: true
@@ -540,7 +540,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: voice-ferry
-        image: 2bleere/voice-ferry:latest
+        image: 2bleere/voice-ferry:arm64
         imagePullPolicy: IfNotPresent
         command: ["/app/b2bua-server"]
         args: ["--config=/etc/voice-ferry/config.yaml"]
@@ -598,7 +598,7 @@ spec:
             cpu: "500m"      # Reduced for ARM
         livenessProbe:
           httpGet:
-            path: /healthz/live
+            path: /health
             port: health
           initialDelaySeconds: 60
           periodSeconds: 30
@@ -606,7 +606,7 @@ spec:
           failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /healthz/ready
+            path: /health
             port: health
           initialDelaySeconds: 30
           periodSeconds: 15
@@ -614,7 +614,7 @@ spec:
           failureThreshold: 5
         startupProbe:
           httpGet:
-            path: /healthz/startup
+            path: /health
             port: health
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -645,47 +645,76 @@ metadata:
     component: web-ui
     platform: arm64
 data:
-  production.env: |
-    NODE_ENV=production
-    PORT=3000
-    
-    # Security
-    JWT_SECRET=${JWT_SECRET}
-    SESSION_SECRET=${SESSION_SECRET}
-    
-    # Redis Configuration
-    REDIS_URL=redis://redis:6379
-    REDIS_PASSWORD=
-    
-    # etcd Configuration - Critical for status monitoring
-    ETCD_ENDPOINTS=http://etcd:2379
-    ETCD_USERNAME=
-    ETCD_PASSWORD=
-    
-    # gRPC Configuration
-    GRPC_ENDPOINT=voice-ferry-grpc:50051
-    GRPC_TLS_ENABLED=false
-    
-    # Logging
-    LOG_LEVEL=info
-    LOG_FILE=/app/logs/voice-ferry-ui.log
-    
-    # Rate Limiting - ARM optimized
-    RATE_LIMIT_MAX=50
-    RATE_LIMIT_WINDOW=15
-    
-    # File Storage
-    CONFIG_DIR=/app/config
-    DATA_DIR=/app/data
-    BACKUP_DIR=/app/backups
-    
-    # Monitoring - Enable for etcd status checking
-    METRICS_ENABLED=true
-    METRICS_INTERVAL=30000
-    
-    # ARM-specific optimizations
-    UV_THREADPOOL_SIZE=4
-    NODE_OPTIONS=--max-old-space-size=256
+  NODE_ENV: "production"
+  PORT: "3000"
+  
+  # Redis Configuration - Simple service connection
+  REDIS_HOST: "redis-simple"
+  REDIS_PORT: "6379"
+  REDIS_URL: "redis://redis-simple:6379"
+  REDIS_PASSWORD: ""
+  
+  # etcd Configuration - Critical for status monitoring
+  ETCD_ENDPOINTS: "http://etcd:2379"
+  ETCD_USERNAME: ""
+  ETCD_PASSWORD: ""
+  
+  # gRPC Configuration
+  GRPC_ENDPOINT: "voice-ferry-grpc:50051"
+  GRPC_TLS_ENABLED: "false"
+  
+  # Logging
+  LOG_LEVEL: "info"
+  LOG_FILE: "/app/logs/voice-ferry-ui.log"
+  
+  # Rate Limiting - ARM optimized
+  RATE_LIMIT_MAX: "50"
+  RATE_LIMIT_WINDOW: "15"
+  
+  # File Storage
+  CONFIG_DIR: "/app/config"
+  DATA_DIR: "/app/data"
+  BACKUP_DIR: "/app/backups"
+  
+  # Monitoring - Enable for etcd status checking
+  METRICS_ENABLED: "true"
+  METRICS_INTERVAL: "30000"
+  
+  # ARM-specific optimizations
+  UV_THREADPOOL_SIZE: "4"
+  NODE_OPTIONS: "--max-old-space-size=256"
+---
+# ===========================================
+# WEB-UI B2BUA CONFIG FOR ARM64
+# ===========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-ui-b2bua-config
+  namespace: voice-ferry
+  labels:
+    app: voice-ferry-web-ui
+    component: web-ui-config
+    platform: arm64
+data:
+  b2bua.yaml: |
+    sip:
+      host: 0.0.0.0
+      port: 5060
+      transport: TCP
+      timeouts:
+        transaction: 32s
+        dialog: 12h
+        registration: 3600s
+    redis:
+      enabled: true
+      host: redis-simple
+      port: 6379
+      password: ""
+      database: 0
+      enable_session_limits: true
+      max_sessions_per_user: 5
+      session_limit_action: reject
 ---
 # ===========================================
 # WEB-UI DEPLOYMENT FOR ARM64
@@ -803,7 +832,11 @@ spec:
       - name: app-logs
         emptyDir: {}
       - name: app-config
-        emptyDir: {}
+        configMap:
+          name: web-ui-b2bua-config
+          items:
+          - key: b2bua.yaml
+            path: b2bua.yaml
       - name: app-backups
         emptyDir: {}
       restartPolicy: Always
@@ -908,31 +941,25 @@ spec:
     targetPort: 3000
     protocol: TCP
 ---
-# ===========================================
-# RTPENGINE SERVICE FOR ARM64
-# ===========================================
+# Simple Redis Service for Web-UI (non-headless)
 apiVersion: v1
 kind: Service
 metadata:
-  name: rtpengine
+  name: redis-simple
   namespace: voice-ferry
   labels:
-    app: rtpengine
-    component: media
+    app: redis-simple
     platform: arm64
 spec:
   type: ClusterIP
-  ports:
-  - name: ng-port
-    port: 22222
-    targetPort: 22222
-    protocol: UDP
-  - name: http
-    port: 5000
-    targetPort: 5000
-    protocol: TCP
   selector:
-    component: rtpengine
+    app: redis-cluster
+    statefulset.kubernetes.io/pod-name: redis-cluster-0
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
 ---
 # ===========================================
 # INGRESS FOR ARM64 WEB-UI
@@ -1025,6 +1052,18 @@ spec:
       port: 443
     - protocol: TCP
       port: 80
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 22222
+    - protocol: UDP
+      port: 5060
+    - protocol: TCP
+      port: 5060
+    - protocol: UDP
+      port: 5061
+    - protocol: TCP
+      port: 5061
 ---
 # ===========================================
 # POD DISRUPTION BUDGETS FOR ARM64
@@ -1127,7 +1166,10 @@ metadata:
   namespace: voice-ferry
   labels:
     component: rtpengine
+    app: rtpengine
+    platform: arm64
 spec:
+  replicas: 1
   selector:
     matchLabels:
       component: rtpengine
@@ -1136,11 +1178,15 @@ spec:
       name: rtpengine
       labels:
         component: rtpengine
+        app: rtpengine
     spec:
       # Here we make sure the pod starts on a single node
       nodeSelector:
         voip-role: media
       hostNetwork: true
+      # RTPEngine requires privileged access for kernel forwarding
+      securityContext:
+        fsGroup: 0
       containers:
         - name: rtpengine
           image: 2bleere/rtpengine:latest
@@ -1150,22 +1196,59 @@ spec:
             - name: PUBLIC_IP
               value: "192.168.1.208"
             #LOCATION_ADDR inherited from ROUTR Deployment, useless here but needed for container startup
-            - name: LOCATION_ADDR
-              value: "location:51902"
-            - name: BIND_HTTP_PORT
-              value: "5000"
+            # - name: BIND_HTTP_PORT
+            #   value: "5000"
             - name: LOG_LEVEL
               value: "8"
             - name: PORT_MIN
               value: "10000"
             - name: PORT_MAX
               value: "10500"
-            - name: BIND_NG_PORT
-              value: "22222"
+            # - name: BIND_NG_PORT
+            #   value: "22222"
             - name: LOCAL_IP
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+          # Critical: RTPEngine needs privileged access for kernel packet forwarding
           securityContext:
+            privileged: true
             allowPrivilegeEscalation: true
-
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SYS_ADMIN
+            runAsUser: 0
+          ports:
+            - name: ng-port
+              containerPort: 22222
+              protocol: UDP
+            - name: http-port
+              containerPort: 5000
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "test -f /proc/net/udp && grep ':56CE ' /proc/net/udp"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "test -f /proc/net/udp && grep ':56CE ' /proc/net/udp"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
