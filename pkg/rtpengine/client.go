@@ -314,13 +314,10 @@ func (c *Client) IsInstanceHealthy(ctx context.Context, instanceID string) bool 
 	// Use a fresh UDP connection for health checks to avoid connection reuse issues in Kubernetes
 	response, err := c.pingWithFreshConnection(ctx, instanceID)
 	if err != nil {
-		// Add debug logging to see what's going wrong
-		fmt.Printf("DEBUG: RTPEngine ping failed for instance %s: %v\n", instanceID, err)
 		return false
 	}
 	
 	healthy := response.Result == "ok"
-	fmt.Printf("DEBUG: RTPEngine ping for instance %s: result=%s, healthy=%v\n", instanceID, response.Result, healthy)
 	return healthy
 }
 

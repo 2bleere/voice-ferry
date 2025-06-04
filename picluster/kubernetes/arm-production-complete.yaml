@@ -540,7 +540,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: voice-ferry
-        image: 2bleere/voice-ferry:arm64
+        image: 2bleere/voice-ferry:latest
         imagePullPolicy: IfNotPresent
         command: ["/app/b2bua-server"]
         args: ["--config=/etc/voice-ferry/config.yaml"]

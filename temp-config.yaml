@@ -1,0 +1,134 @@
+debug: false
+log_level: "info"
+
+sip:
+  host: "0.0.0.0"
+  port: 5060
+  transport: "UDP"
+  tls:
+    enabled: true
+    port: 5061
+    cert_file: "/etc/ssl/certs/tls.crt"
+    key_file: "/etc/ssl/private/tls.key"
+  timeouts:
+    transaction: 32s
+    dialog: 1800s
+    registration: 3600s
+    invite: 180s
+  user_agent: "Voice Ferry SIP B2BUA v1.0 ARM64"
+
+grpc:
+  host: "0.0.0.0"
+  port: 50051
+  tls:
+    enabled: false  # Enable in production with proper certs
+  rate_limit:
+    enabled: true
+    requests_per_minute: 1000
+
+health:
+  host: "0.0.0.0"
+  port: 8080
+  endpoints:
+    liveness: "/healthz/live"
+    readiness: "/healthz/ready"
+    startup: "/healthz/startup"
+    metrics: "/metrics"
+
+storage:
+  redis:
+    url: "redis://redis:6379"
+    password: ""
+    database: 0
+    pool_size: 10
+    max_retries: 3
+    retry_delay: 1s
+  etcd:
+    endpoints: ["etcd:2379"]
+    username: ""
+    password: ""
+    timeout: 5s
+    dial_timeout: 5s
+    keep_alive_time: 30s
+    keep_alive_timeout: 5s
+    max_retries: 3
+    retry_delay: 1s
+
+rtpengine:
+  instances:
+    - id: "rtpengine-1"
+      host: "192.168.1.208"
+      port: 22222
+      weight: 100
+      enabled: true
+  timeout: 30s
+
+security:
+  jwt:
+    enabled: true
+    signing_key: "${JWT_SIGNING_KEY}"
+    expiration: 24h
+    issuer: "voice-ferry-b2bua"
+    audience: "voice-ferry-api"
+  ip_acl:
+    enabled: true
+    default_action: "allow"
+    rules:
+      - cidr: "10.0.0.0/8"
+        action: "allow"
+        description: "Kubernetes cluster network"
+      - cidr: "172.16.0.0/12"
+        action: "allow"
+        description: "Private network"
+      - cidr: "192.168.0.0/16"
+        action: "allow"
+        description: "Private network"
+  rate_limiting:
+    enabled: true
+    global:
+      requests_per_second: 500  # Reduced for ARM
+      burst: 1000
+    per_ip:
+      requests_per_second: 50   # Reduced for ARM
+      burst: 100
+
+sessions:
+  storage: "redis"
+  limits:
+    global_max_sessions: 5000   # Reduced for ARM
+    per_user_max_sessions: 10
+    per_ip_max_sessions: 50     # Reduced for ARM
+  timeouts:
+    idle_timeout: 1800s
+    max_session_time: 7200s
+  cleanup:
+    interval: 60s
+    expired_sessions_batch_size: 50  # Reduced for ARM
+
+routing:
+  default_action: "reject"
+  storage: "etcd"
+  max_rules: 500              # Reduced for ARM
+  evaluation_timeout: 100ms
+
+performance:
+  sip_workers: 4              # Reduced for ARM
+  grpc_workers: 2             # Reduced for ARM
+  max_concurrent_calls: 2000  # Reduced for ARM
+  max_connections_per_ip: 50  # Reduced for ARM
+  gc_target_percentage: 75
+
+monitoring:
+  health_checks:
+    interval: 30s
+    timeout: 10s
+    dependencies:
+      - name: "redis"
+        type: "redis"
+        config:
+          host: "redis"
+          port: 6379
+      - name: "etcd"
+        type: "etcd"
+        config:
+          endpoints: ["etcd:2379"]
